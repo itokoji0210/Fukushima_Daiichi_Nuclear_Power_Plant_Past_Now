@@ -17,8 +17,8 @@
         form-action 'self';
       ">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>福島第一 ３Ｄ同期比較（2012/2025）— iPhone最適化版</title>
-<meta name="description" content="iPhoneでの同期安定を最優先。起動は低画質→安定後にだけ段階的に画質アップ。停止フレーム一致、全画面でもフェード可、縦画面は100dvhでフィット。" />
+<title>福島第一 ３Ｄ同期比較（2012/2025）— クロスプラットフォーム最適化</title>
+<meta name="description" content="iPhone/Android/PCで同期最優先。起動は低画質→キャッシュ蓄積後に段階アップ。停止フレーム一致、全画面でもフェード操作、縦画面は100dvhでフィット。" />
 <style>
   :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; }
   *{box-sizing:border-box} html,body{height:100%}
@@ -53,7 +53,7 @@
   .slider-handle{position:absolute;top:0;bottom:0;width:2px;background:#ffffff66;left:50%;cursor:ew-resize;z-index:6}
   .slider-dot{position:absolute;top:50%;transform:translate(-50%,-50%);left:50%;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(0,0,0,.35)}
 
-  /* 停止時に中央再生アイコンを隠す（フレームは見える） */
+  /* 停止時の極薄オーバーレイ（YouTube中央アイコンを隠す／映像は見える） */
   #pause-mask{position:absolute;inset:0;background:rgba(0,0,0,0.001);display:none;z-index:5}
   #pause-mask.on{display:block}
 
@@ -119,7 +119,7 @@
 <body>
   <div class="wrap">
     <div class="header">
-      <div class="title">福島第一 ３Ｄ同期比較（2012 / 2025）— iPhone最適化</div>
+      <div class="title">福島第一 ３Ｄ同期比較（2012 / 2025）— クロスプラットフォーム最適化</div>
     </div>
 
     <div class="video-shell" id="video-shell" aria-label="比較ビュー">
@@ -133,10 +133,10 @@
       <!-- スライダー -->
       <div class="slider-handle" id="slider-handle" hidden><div class="slider-dot"></div></div>
 
-      <!-- 停止時：中央アイコンなどを隠す -->
+      <!-- 停止時：中央アイコン等を隠す -->
       <div id="pause-mask" aria-hidden="true"></div>
 
-      <!-- FS 専用フェードツールバー -->
+      <!-- FS 専用フェードツールバー（フェード比較時のみ表示） -->
       <div class="fs-toolbar" id="fs-toolbar" aria-hidden="true">
         <label for="fade-range-fs">フェード</label>
         <input type="range" id="fade-range-fs" min="0" max="100" value="50" step="1" />
@@ -147,7 +147,7 @@
       <div id="intro" role="dialog" aria-modal="true">
         <div class="intro-box">
           <div class="intro-title">同期準備中…（起動は低画質）</div>
-          <div class="intro-sub" id="intro-sub">iPhoneは余裕を持ってバッファを確保します</div>
+          <div class="intro-sub" id="intro-sub">バッファを十分に確保しています</div>
           <div class="bar" id="intro-bar" style="--p:0%"></div>
           <div class="intro-row">
             <button id="intro-start" class="btn-primary" disabled>再生開始</button>
@@ -193,41 +193,40 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-  // ====== 設定：同期最優先 ======
+  // ====== 設定（デバイス別に閾値を最適化） ======
   const VIDEO_A = { id:'WOw9BryHb_4', label:'2012' }; // leader
   const VIDEO_B = { id:'KKNWwr_9590',  label:'2025' }; // follower
 
-  const isIOS = /iP(hone|ad|od)/i.test(navigator.userAgent);
+  const ua = navigator.userAgent;
+  const isIOS = /iP(hone|ad|od)/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
 
-  // しきい値（iOSはより保守的）
-  const FINE        = isIOS ? 0.10 : 0.08;
-  const HARD        = 0.50;
-  const COOLDOWN    = isIOS ? 700  : 500;
+  // iOSはより保守的、Androidはやや保守、PCはデフォルト
+  const FINE     = isIOS ? 0.10 : isAndroid ? 0.09 : 0.08;
+  const HARD     = 0.50;
+  const COOLDOWN = isIOS ? 700  : isAndroid ? 600  : 500;
 
   // 再生速度補正（iOSは使わない）
   const RATE_NORM=1, RATE_FAST=1.25, RATE_SLOW=0.75;
-  const USE_RATE  = !isIOS;                // [iOS] false にして速度補正を封印
-  const RATE_DEAD = 0.10, RATE_MAX_HOLD_MS=3500;
+  const USE_RATE = !isIOS; // iOSは速度補正封印
+  const RATE_DEAD= 0.10, RATE_MAX_HOLD_MS=3500;
 
-  // バッファ基準（iOSは大きめに確保）
-  const MIN_FRAC   = isIOS ? 0.20 : 0.12;
-  const MIN_SEC    = isIOS ? 8    : 5;
-  const RESYNC_FRAC= isIOS ? 0.30 : 0.20;
-  const RESYNC_SEC = isIOS ? 12   : 8;
+  // バッファ基準
+  const MIN_FRAC    = isIOS ? 0.20 : isAndroid ? 0.16 : 0.12;
+  const MIN_SEC     = isIOS ? 8    : isAndroid ? 6    : 5;
+  const RESYNC_FRAC = isIOS ? 0.30 : isAndroid ? 0.24 : 0.20;
+  const RESYNC_SEC  = isIOS ? 12   : isAndroid ? 10   : 8;
 
-  // 画質（低→高） 起動は small。iOSは上限を抑え気味（hd720まで）
+  // 画質（低→高） 起動はsmall。iOSはhd720まで
   const QUALITY_ORDER = isIOS ? ['small','medium','large','hd720']
                               : ['small','medium','large','hd720','hd1080'];
-
-  // 段階アップ条件（iOSはさらに厳格）
-  const UPGRADE_FRAC = isIOS ? 0.70 : 0.60;
-  const UPGRADE_STABLE_MS = isIOS ? 12000 : 9000;
+  const UPGRADE_FRAC = isIOS ? 0.70 : isAndroid ? 0.65 : 0.60;
+  const UPGRADE_STABLE_MS = isIOS ? 12000 : isAndroid ? 10000 : 9000;
 
   // ====== 状態 ======
   let pA=null, pB=null, readyA=false, readyB=false, playing=false;
   let introOn=true, autoStart=true, started=false;
-  let raf=null, tickId=null;     // [iOS] rAF に加え backup interval を使う
-  let total=0, lastFine=0;
+  let raf=null, tickId=null, total=0, lastFine=0;
   let rateMode='norm', rateSince=0, lastHardOrPause=0, stableStart=0;
   const qIndex = { A:0, B:0 }; // small
 
@@ -273,11 +272,12 @@
   btnA.onclick=()=>setMode('only-a');
   btnB.onclick=()=>setMode('only-b');
 
-  function onFadeInput(v){ fadeRange.value = v; fadeRangeFS.value = v; syncFadeValue(Number(v)); }
+  // フェード値の双方向同期
+  function onFadeInput(v){ fadeRange.value=v; fadeRangeFS.value=v; syncFadeValue(Number(v)); }
   fadeRange.oninput  = e => onFadeInput(e.target.value);
   fadeRangeFS.oninput= e => onFadeInput(e.target.value);
 
-  // スライダードラッグ
+  // スライダードラッグ（モバイルも精度良く）
   let dragging=false;
   const down=e=>{ dragging=true; e.preventDefault?.(); };
   const up=()=>{ dragging=false; };
@@ -308,11 +308,10 @@
     updateBar(c);
   }
 
-  // 再生/停止（停止位置の完全一致＋中央アイコン隠し）
+  // 再生/停止（停止位置を必ず一致）
   function showPauseMask(on){ pauseMask.classList.toggle('on', !!on); }
   function playBoth(){ try{pA.playVideo()}catch{} try{pB.playVideo()}catch{} playing=true; playBtn.textContent='⏸ 一時停止'; playBtn.setAttribute('aria-pressed','true'); showPauseMask(false); startLoops(); }
   function pauseBoth(){ try{pA.pauseVideo()}catch{} try{pB.pauseVideo()}catch{} playing=false; playBtn.textContent='▶ 再生'; playBtn.setAttribute('aria-pressed','false'); showPauseMask(true); stopLoops(); }
-
   $('play-pause').onclick=()=>{ if(!(readyA&&readyB) || introOn) return; playing?pauseBoth():playBoth(); };
   $('rewind-5').onclick=()=>nudge(-5);
   $('forward-5').onclick=()=>nudge(+5);
@@ -325,13 +324,13 @@
   seek.addEventListener('change',()=>seekBoth(parseFloat(seek.value),true));
 
   function forceSyncOnPause(){
-    const t=pA.getCurrentTime?.()||0;
+    const t=pA.getCurrentTime?.()||0; // leader の時間
     pB.seekTo(t,false);
     updateSeek(t);
     lastHardOrPause = performance.now();
   }
 
-  // フルスクリーン（iOSは常に疑似FS。他はネイティブ→失敗時は疑似FS）
+  // フルスクリーン（iOSは常に疑似、他はネイティブ→失敗時は疑似）
   function inNativeFS(){ return !!(document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement); }
   function reqNative(el){
     const f=el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen||el.mozRequestFullScreen;
@@ -355,17 +354,16 @@
 
   function updateFsToolbar(){ if(inAnyFS() && mode==='fade'){ fsToolbar.classList.add('on'); } else { fsToolbar.classList.remove('on'); } }
 
-  // 画質制御
+  // 画質制御（段階アップ／ダウン）
   function applyQuality(p, which, idx){
     qIndex[which] = Math.max(0, Math.min(QUALITY_ORDER.length-1, idx));
     try{ p.setPlaybackQuality?.(QUALITY_ORDER[qIndex[which]]); }catch{}
   }
   function lowerQualityIfNeeded(){
     const now = performance.now();
-    if(now - lastHardOrPause < 1200) return;
+    if(now - lastHardOrPause < 1200) return; // 直後は様子見
     const fA=pA.getVideoLoadedFraction?.()||0, fB=pB.getVideoLoadedFraction?.()||0;
-    const thin = (fA<MIN_FRAC || fB<MIN_FRAC);
-    if(thin){
+    if(fA<MIN_FRAC || fB<MIN_FRAC){
       if(qIndex.A>0) applyQuality(pA,'A',qIndex.A-1);
       if(qIndex.B>0) applyQuality(pB,'B',qIndex.B-1);
     }
@@ -376,8 +374,8 @@
     if(fA>=UPGRADE_FRAC && fB>=UPGRADE_FRAC && driftAbs<=FINE){
       if(stableStart===0) stableStart = now;
       if(now - stableStart >= UPGRADE_STABLE_MS){
-        if(qIndex.A < QUALITY_ORDER.length-1){ applyQuality(pA,'A',qIndex.A+1); }
-        if(qIndex.B < QUALITY_ORDER.length-1){ applyQuality(pB,'B',qIndex.B+1); }
+        if(qIndex.A < QUALITY_ORDER.length-1) applyQuality(pA,'A',qIndex.A+1);
+        if(qIndex.B < QUALITY_ORDER.length-1) applyQuality(pB,'B',qIndex.B+1);
         stableStart = 0;
       }
     }else{
@@ -393,11 +391,11 @@
     return have>=need;
   }
 
-  // 同期（seek/速度）
+  // 同期基本操作
   function seekBoth(t, allow){ pA.seekTo(t,allow); pB.seekTo(t,allow); updateSeek(t); }
   function setRate(p, r){ try{ p.setPlaybackRate?.(r); }catch{} }
 
-  // ====== メイン同期（rAF + [iOS] interval の二段） ======
+  // ====== 同期ループ（rAF + iOSはinterval併用） ======
   function syncStep(){
     const stA=pA.getPlayerState?.(), stB=pB.getPlayerState?.();
     const tA=pA.getCurrentTime?.()||0, tB=pB.getCurrentTime?.()||0;
@@ -447,11 +445,10 @@
     maybeUpgradeQuality(abs);
     updateSeek(tA);
   }
-
   function rAFLoop(){ syncStep(); raf=requestAnimationFrame(rAFLoop); }
   function startLoops(){
     if(!raf) raf=requestAnimationFrame(rAFLoop);
-    if(isIOS && !tickId){ tickId=setInterval(syncStep, 180); } // [iOS] backup tick
+    if(isIOS && !tickId){ tickId=setInterval(syncStep, 180); } // iOSはbackup tick
   }
   function stopLoops(){
     if(raf){ cancelAnimationFrame(raf); raf=null; }
@@ -509,15 +506,20 @@
     if(st===YT.PlayerState.ENDED){ seekBoth(0,true); playBoth(); }
   }
 
+  // イントロ操作
   $('intro-start').onclick=()=>begin();
   $('auto-start').onchange=(e)=>{ autoStart=!!e.target.checked; };
 
-  // 視認性のない状態（別タブ等）では interval を止める
+  // タブ非表示時の節電：iOSバックアップtickを止める
   document.addEventListener('visibilitychange', ()=>{
     if(document.hidden){ if(tickId){ clearInterval(tickId); tickId=null; } }
     else if(isIOS && playing && !tickId){ tickId=setInterval(syncStep,180); }
   });
 
+  // 端末回転・リサイズでUI調整（疑似FS中も100dvhでフィット）
+  window.addEventListener('resize', ()=>{ if(document.body.classList.contains('pfs')){ /* CSSが対応済み */ } });
+
+  // ページ離脱
   window.addEventListener('beforeunload',()=>{ stopLoops(); });
   </script>
 </body>
