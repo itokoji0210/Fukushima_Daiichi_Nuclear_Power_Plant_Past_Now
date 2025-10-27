@@ -18,8 +18,8 @@
           form-action 'self';
         ">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>福島第一 ３Ｄ動画 被災翌年/現在（同期比較）</title>
-  <meta name="description" content="福島第一原発の3DGS（2012/2025）を同期再生し、フェード/スライダー/単独表示で比較できるデモ。" />
+  <title>福島第一 ３Ｄ動画 被災翌年/現在（同期比較・低速回線最適化）</title>
+  <meta name="description" content="福島第一原発の3DGS（2012/2025）を同期再生。低速回線でのカクつきを抑える適応制御＋フェード/スライダー/単独表示＋全画面UI。" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%235b9cff'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='56' fill='white' font-family='Arial, sans-serif'%3EF%3C/text%3E%3C/svg%3E" />
   <style>
     :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; }
@@ -30,7 +30,6 @@
     .title{font-size:clamp(18px,2.4vw,28px);font-weight:700}
     .note{color:var(--muted);font-size:12px}
 
-    /* 端末幅に合わせて最大化。極小端末での潰れを避けるため下限も確保 */
     .video-shell{
       position:relative;
       width: clamp(320px, 96vw, 1400px);
@@ -42,9 +41,9 @@
     }
     .layer{position:absolute;inset:0}
     .layer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
-    #video-shell{pointer-events:none} .controls,.slider-handle,.overlay-button{pointer-events:auto}
+    #video-shell{pointer-events:none} .controls,.slider-handle,.overlay-button,.fs-btn{pointer-events:auto}
 
-    /* スライダーハンドル */
+    /* スライダー */
     .slider-handle{position:absolute;top:0;bottom:0;width:2px;background:#ffffff66;left:50%;cursor:ew-resize;z-index:5}
     .slider-dot{position:absolute;top:50%;transform:translate(-50%,-50%);left:50%;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(0,0,0,.35)}
 
@@ -61,7 +60,7 @@
     .btn-primary{background:linear-gradient(180deg,#2a6cff,#164cff);color:#fff;border:1px solid #335fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
     .btn-primary[disabled]{opacity:.6;cursor:not-allowed}
 
-    /* 一時停止時/終了時にYouTubeのオーバーレイを隠すシールド */
+    /* 一時停止・終了時のシールド（関連動画隠し） */
     #pause-shield{
       position:absolute;inset:0;background:#0b0d13;display:none;align-items:center;justify-content:center;z-index:7;
     }
@@ -70,6 +69,20 @@
       background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);
       border:1px solid #26324a;padding:12px 16px;border-radius:999px;font-weight:800;cursor:pointer
     }
+
+    /* フルスクリーンボタン（右上） */
+    .fs-btn{
+      position:absolute;top:10px;right:10px;z-index:8;
+      background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);
+      border:1px solid #26324a;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer
+    }
+    /* 全画面時の戻るボタン（左上） */
+    .fs-exit{
+      position:absolute;top:10px;left:10px;z-index:8;display:none;
+      background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);
+      border:1px solid #26324a;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer
+    }
+    .fs-exit.visible{display:block}
 
     .panel{background:linear-gradient(180deg,#161b27,#121620);border:1px solid #20273a;border-radius:var(--radius);padding:14px;display:grid;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04)}
     .row{display:grid;gap:8px;align-items:center}
@@ -81,12 +94,12 @@
     .seg-btn{border-radius:999px;padding:8px 14px}
     .time{font-variant-numeric:tabular-nums}
 
-    /* YouTube風シーク */
+    /* シーク */
     #seek{height:28px;-webkit-appearance:none;background:transparent;border-radius:999px;padding:10px 0;
       background-image:
-        linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.25)), /* base */
-        linear-gradient(rgba(255,255,255,.60), rgba(255,255,255,.60)), /* buffered */
-        linear-gradient(#e53935,#e53935);                               /* played */
+        linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.25)),
+        linear-gradient(rgba(255,255,255,.60), rgba(255,255,255,.60)),
+        linear-gradient(#e53935,#e53935);
       background-repeat:no-repeat;
       background-size:100% 6px, var(--buf,0%) 6px, var(--p,0%) 6px;
       background-position:left center,left center,left center;
@@ -99,7 +112,6 @@
     #seek:hover::-webkit-slider-thumb,#seek:active::-webkit-slider-thumb{transform:scale(1.15);box-shadow:0 0 0 8px rgba(229,57,53,.2)}
     #seek:hover::-moz-range-thumb,#seek:active::-moz-range-thumb{transform:scale(1.15);box-shadow:0 0 0 8px rgba(229,57,53,.2)}
 
-    /* 再生ボタンを中央に */
     .transport-buttons{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}
     .transport-buttons .primary{font-weight:800}
 
@@ -117,17 +129,21 @@
 <body>
   <div class="wrap">
     <div class="header">
-      <div class="title">福島第一 ３Ｄ動画 被災翌年/現在（同期比較）</div>
+      <div class="title">福島第一 ３Ｄ動画 被災翌年/現在（同期比較・低速最適化）</div>
     </div>
 
     <div class="video-shell" id="video-shell" aria-label="比較ビュー">
+      <!-- 画面右上：フルスクリーンへ -->
+      <button id="fs-enter" class="fs-btn" aria-label="全画面表示">⤢ 全画面</button>
+      <!-- 全画面時の戻る -->
+      <button id="fs-exit" class="fs-exit" aria-label="全画面を終了">⤡ 戻る</button>
+
       <div class="layer" id="layer-before"><div id="yt-before"></div></div>
       <div class="layer" id="layer-after"><div id="yt-after"></div></div>
 
-      <!-- スライダー -->
       <div class="slider-handle" id="slider-handle" hidden><div class="slider-dot"></div></div>
 
-      <!-- 一時停止・終了時のシールド -->
+      <!-- 一時停止・終了、または自動再生不可時に覆って関連動画などを隠す -->
       <div id="pause-shield" aria-hidden="true">
         <button id="overlay-play" class="overlay-button" aria-label="再生再開">▶ 再生</button>
       </div>
@@ -182,19 +198,25 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    // ==== Config（動画ID差し替え）====
+    // ==== Config（動画ID）====
     const VIDEO_BEFORE = { id: 'WOw9BryHb_4', label: '被災翌年' };
     const VIDEO_AFTER  = { id: 'KKNWwr_9590', label: '現在' };
-    // 同期・制御パラメータ
+
+    // 同期・適応制御パラメータ
     const SYNC_FINE = 0.08, SYNC_HARD = 0.50, FINE_COOLDOWN_MS = 500;
+    const MIN_BUFFER_FRAC = 0.10, MIN_BUFFER_SEC = 5;      // 低速回線を想定し閾値をやや高めに
+    const RESYNC_BUFFER_FRAC = 0.18, RESYNC_BUFFER_SEC = 8; // 再開閾値
     const AUTOPLAY_WATCH_MS_1 = 500, AUTOPLAY_WATCH_MS_2 = 1500;
-    const MIN_BUFFER_FRAC = 0.06, MIN_BUFFER_SEC = 3;
+
+    // 画質の優先順（上から試す）
+    const QUALITY_ORDER = ['hd1080','hd720','large','medium','small'];
 
     // ==== State ====
     let playerBefore=null, playerAfter=null, duration=0;
     let isReadyA=false, isReadyB=false, isPlaying=false;
     let introRunning=true, autoplayBlocked=false, autoStartEnabled=true, started=false;
-    let bufferingStartAt=null;
+    let rafId=null, intervalId=null, lastFineAdjustAt=0;
+    let bufferWatchTimer=null, qualityLocked=false, followerHolding=false;
 
     // ==== Elements ====
     const el=id=>document.getElementById(id);
@@ -206,12 +228,14 @@
     const introProgBar=el('intro-progress-bar'), introProgLabel=el('intro-progress-label'), introAuto=el('intro-autostart');
     const btnModeSlider=el('btn-mode-slider'), btnModeFade=el('btn-mode-fade'), btnOnlyBefore=el('btn-mode-only-before'), btnOnlyAfter=el('btn-mode-only-after');
     const pauseShield=el('pause-shield'), overlayPlay=el('overlay-play');
+    const fsEnter=el('fs-enter'), fsExit=el('fs-exit');
 
     // ==== Helpers ====
     let currentMode='slider'; // slider | fade | only-before | only-after
     function formatTime(sec){const s=Math.max(0,Math.floor(sec||0));const m=Math.floor(s/60),r=s%60;return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`}
     function setActive(btn,on){btn.setAttribute('aria-pressed',on?'true':'false')}
     function applySplit(p){p=Math.max(0,Math.min(100,p));layerAfter.style.clipPath=`inset(0 0 0 ${p}%)`;sliderHandle.style.left=p+'%'}
+    function showShield(on){ pauseShield.classList.toggle('visible', !!on); pauseShield.setAttribute('aria-hidden', on?'false':'true'); }
     function updateBufferUI(current){
       if(!Number.isFinite(duration)||duration<=0)return;
       const fA=playerBefore?.getVideoLoadedFraction?.()||0, fB=playerAfter?.getVideoLoadedFraction?.()||0;
@@ -226,7 +250,6 @@
       timeReadout.textContent=`${formatTime(c)} / ${formatTime(duration)} (−${formatTime(Math.max(0,duration-c))})`;
       updateBufferUI(c);
     }
-
     function setMode(mode){
       currentMode=mode;
       setActive(btnModeSlider,mode==='slider'); setActive(btnModeFade,mode==='fade');
@@ -252,7 +275,7 @@
 
     fadeRange.addEventListener('input',()=>{const v=fadeRange.valueAsNumber;fadePct.textContent=v+'%';if(currentMode==='fade')layerAfter.style.opacity=(v/100).toFixed(2)})
 
-    // Slider drag（ドラッグ中はスクロールを抑止）
+    // スライダードラッグ（ドラッグ中はページスクロール抑止）
     let dragging=false;
     const onDown=(e)=>{dragging=true; e.preventDefault?.()};
     const onUp=()=>{dragging=false};
@@ -266,8 +289,7 @@
     sliderHandle.addEventListener('mousedown',onDown); window.addEventListener('mouseup',onUp); window.addEventListener('mousemove',onMove);
     sliderHandle.addEventListener('touchstart',onDown,{passive:false}); window.addEventListener('touchend',onUp); window.addEventListener('touchmove',onMove,{passive:false});
 
-    // Transport
-    function showShield(on){ pauseShield.classList.toggle('visible', !!on); pauseShield.setAttribute('aria-hidden', on?'false':'true'); }
+    // 再生・一時停止（Pause Shield連動）
     function playBoth(){ try{playerBefore.playVideo()}catch{} try{playerAfter.playVideo()}catch{} isPlaying=true; playPause.textContent='⏸ 一時停止'; playPause.setAttribute('aria-pressed','true'); showShield(false);}
     function pauseBoth(){ try{playerBefore.pauseVideo()}catch{} try{playerAfter.pauseVideo()}catch{} isPlaying=false; playPause.textContent='▶ 再生'; playPause.setAttribute('aria-pressed','false'); showShield(true);}
 
@@ -278,58 +300,113 @@
     function nudge(d){if(!isReadyA||!isReadyB)return;const t=Math.max(0,Math.min(duration,playerBefore.getCurrentTime()+d));seekToBoth(t,true)}
     seek.addEventListener('input',()=>updateSeekUI(parseFloat(seek.value))); seek.addEventListener('change',()=>seekToBoth(parseFloat(seek.value),true));
 
-    // キーボード（左右：±1s、Shift+左右：±5s、Space：再生/一時停止）
+    // キーボード（左右：±1s、Shift+左右：±5s、Space：再生/一時停止、F：全画面トグル）
     window.addEventListener('keydown',(e)=>{
       if(introRunning) return;
       if(e.key===' '){ e.preventDefault(); isPlaying?pauseBoth():playBoth(); }
       if(e.key==='ArrowLeft'){ e.preventDefault(); nudge(e.shiftKey?-5:-1); }
       if(e.key==='ArrowRight'){ e.preventDefault(); nudge(e.shiftKey?+5:+1); }
+      if(e.key.toLowerCase()==='f'){ e.preventDefault(); toggleFullscreen(); }
     });
 
-    // ==== 同期（rAF二段階補正）====
-    let rafId = null, intervalId = null, lastFineAdjustAt = 0;
+    // ==== フルスクリーン ====
+    function inFullscreen(){ return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement); }
+    function requestFS(el){
+      (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen || el.mozRequestFullScreen)?.call(el);
+    }
+    function exitFS(){
+      (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen || document.mozCancelFullScreen)?.call(document);
+    }
+    function toggleFullscreen(){
+      if(inFullscreen()){ exitFS(); } else { requestFS(shell); }
+    }
+    fsEnter.addEventListener('click', toggleFullscreen);
+    fsExit.addEventListener('click', exitFS);
+    document.addEventListener('fullscreenchange', ()=>{ fsExit.classList.toggle('visible', inFullscreen()); });
+    document.addEventListener('webkitfullscreenchange', ()=>{ fsExit.classList.toggle('visible', inFullscreen()); });
 
-    function bufferedEnough(p){
-      const dur=p.getDuration()||0, frac=(p.getVideoLoadedFraction?p.getVideoLoadedFraction():0)||0;
-      const have=Math.max(frac*dur, p.getCurrentTime?p.getCurrentTime():0), need=Math.max(MIN_BUFFER_FRAC*dur, MIN_BUFFER_SEC);
+    // ==== 適応制御ユーティリティ ====
+    function getCommonQuality(avail){
+      for (const q of QUALITY_ORDER){ if (avail.includes(q)) return q; }
+      return null;
+    }
+    function setLowerQualityIfNeeded(p){
+      try{
+        const avail = p.getAvailableQualityLevels?.() || [];
+        const target = getCommonQuality(avail);
+        if (target && !qualityLocked) { p.setPlaybackQuality?.(target); }
+      }catch{}
+    }
+    function bufferedEnough(p, frac=MIN_BUFFER_FRAC, sec=MIN_BUFFER_SEC){
+      const dur=p.getDuration()||0, f=(p.getVideoLoadedFraction?p.getVideoLoadedFraction():0)||0;
+      const have=Math.max(f*dur, p.getCurrentTime?p.getCurrentTime():0), need=Math.max(frac*dur, sec);
       return have>=need;
     }
-
     function seekToBoth(t, allow){ playerBefore.seekTo(t, allow); playerAfter.seekTo(t, allow); updateSeekUI(t); }
 
+    // ==== 同期（rAF二段階補正 + 低速回線フォールバック）====
     function syncStep() {
       if (!isReadyA || !isReadyB) { scheduleNext(); return; }
 
       const stA = playerBefore.getPlayerState?.();
       const stB = playerAfter.getPlayerState?.();
 
-      // PLAYING同士以外は補正停止（UIだけ更新）
+      // 再生状態がPLAYING同士でない場合：UIのみ更新
       if (stA !== YT.PlayerState.PLAYING || stB !== YT.PlayerState.PLAYING) {
         updateSeekUI(playerBefore.getCurrentTime());
         scheduleNext();
         return;
       }
 
+      // 低速回線向け：追従側（after）のバッファが薄いなら「ホールド」モード
+      const leaderOK = bufferedEnough(playerBefore);
+      const followerOK = bufferedEnough(playerAfter);
+      const followerOKForResync = bufferedEnough(playerAfter, RESYNC_BUFFER_FRAC, RESYNC_BUFFER_SEC);
+
+      // 画質も随時見直す
+      setLowerQualityIfNeeded(playerBefore);
+      setLowerQualityIfNeeded(playerAfter);
+
+      // followerが厳しい時：ホールド（止めて最後のフレームを維持）、表示は維持
+      if (leaderOK && !followerOK) {
+        if (!followerHolding){
+          try{ playerAfter.pauseVideo(); }catch{}
+          followerHolding = true;
+        }
+        // leaderは継続、UI更新のみ
+        updateSeekUI(playerBefore.getCurrentTime());
+        scheduleNext();
+        return;
+      }
+
+      // ホールド解除条件：十分なバッファが溜まったら再同期して再生
+      if (followerHolding && followerOKForResync) {
+        const ta = playerBefore.getCurrentTime();
+        playerAfter.seekTo(ta, /*allowSeekAhead=*/true);
+        try{ playerAfter.playVideo(); }catch{}
+        followerHolding = false;
+        lastFineAdjustAt = performance.now();
+      }
+
+      // 通常の二段階補正
       const ta = playerBefore.getCurrentTime();
       const tb = playerAfter.getCurrentTime();
       const drift = tb - ta;
 
-      const bufOK = bufferedEnough(playerBefore) && bufferedEnough(playerAfter);
-
-      if (bufOK) {
+      const bufOK = leaderOK && (followerOK || !followerHolding);
+      if (bufOK && !followerHolding) {
         const now = performance.now();
         if (Math.abs(drift) > SYNC_HARD) {
-          // 大補正：一発同期（ネットワークリクエスト許可）
           playerAfter.seekTo(ta, /*allowSeekAhead=*/true);
           lastFineAdjustAt = now;
         } else if (Math.abs(drift) > SYNC_FINE) {
-          // 微補正：レート制限＋バッファ維持（allowSeekAhead=false）
           if (now - lastFineAdjustAt > FINE_COOLDOWN_MS) {
             playerAfter.seekTo(ta, /*allowSeekAhead=*/false);
             lastFineAdjustAt = now;
           }
         }
       }
+
       updateSeekUI(ta);
       scheduleNext();
     }
@@ -338,7 +415,7 @@
       if (document.visibilityState === 'visible' && isPlaying) {
         rafId = requestAnimationFrame(syncStep);
       } else {
-        intervalId = setTimeout(syncStep, 120);
+        intervalId = setTimeout(syncStep, 160); // 非表示時は省電力
       }
     }
     function startTicking(){ if (!rafId && !intervalId) scheduleNext(); }
@@ -375,13 +452,17 @@
     }
 
     // ==== バッファ監視（自動再生判定 & 進捗UI）====
-    let bufferWatchTimer=null;
     function startBufferWatch(){
       if(bufferWatchTimer)return;
       autoStartEnabled=!!introAuto.checked; introAuto.addEventListener('change',()=>{autoStartEnabled=!!introAuto.checked});
       introBtn.disabled=false;
       bufferWatchTimer=setInterval(()=>{
         const tNow=playerBefore?.getCurrentTime?.()||0; updateBufferUI(tNow);
+
+        // 双方の品質を適宜下げる（必要時のみ）
+        setLowerQualityIfNeeded(playerBefore);
+        setLowerQualityIfNeeded(playerAfter);
+
         const ready=bufferedEnough(playerBefore)&&bufferedEnough(playerAfter);
         if(ready){
           introSub.textContent = autoplayBlocked
@@ -392,7 +473,7 @@
             ? '同期準備中… 再生ボタンでバッファリングを開始します'
             : '同期準備中… バッファリング中';
         }
-      },180);
+      },200);
     }
 
     introBtn.addEventListener('click',()=>{if(!introBtn.disabled)beginPlaybackFromZero()});
@@ -429,14 +510,14 @@
       if(isReadyA&&isReadyB){
         const dA=playerBefore.getDuration(), dB=playerAfter.getDuration(); duration=Math.min(dA||0,dB||0); updateSeekUI(0);
         setMode('slider'); startIntroAnimation();
-        playBoth();
-        bufferingStartAt=performance.now();
+        // まずは再生開始（自動再生が無理なら後でShieldで案内）
+        try{playerBefore.playVideo()}catch{} try{playerAfter.playVideo()}catch{} isPlaying=true; playPause.textContent='⏸ 一時停止'; playPause.setAttribute('aria-pressed','true');
 
-        // 自動再生可否を段階的に監視
+        // 自動再生可否の段階監視
         setTimeout(checkAutoplay, AUTOPLAY_WATCH_MS_1);
         setTimeout(checkAutoplay, AUTOPLAY_WATCH_MS_2);
 
-        startBufferWatch();
+        startBufferWatch(); startTicking();
       }
     }
 
@@ -444,19 +525,18 @@
       const stA=playerBefore.getPlayerState?.(), stB=playerAfter.getPlayerState?.();
       if(stA!==YT.PlayerState.PLAYING && stB!==YT.PlayerState.PLAYING){
         autoplayBlocked=true; introBtn.disabled=false; introSub.textContent='ブラウザが自動再生を制限 — 「再生開始」を押してください';
-        showShield(true); // 画面には自前UIのみ
+        showShield(true);
       }
     }
 
-    function onPlaybackRateChange(_ev){ /* 必要ならロギング */ }
-    function onError(ev){ /* 必要ならロギング: console.warn('YT error', ev.data); */ }
+    function onPlaybackRateChange(_ev){ /* ログが必要ならここに */ }
+    function onError(_ev){ /* ログが必要ならここに */ }
 
     function onStateChange(ev){
       if(!playerBefore||!playerAfter)return;
       const st=ev.data;
 
       if (st===YT.PlayerState.PAUSED) {
-        // どちらかがPAUSEDなら両方止めてシールド表示
         if (!introRunning) { pauseBoth(); }
       }
       if (st===YT.PlayerState.PLAYING) {
