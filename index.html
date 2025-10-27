@@ -459,4 +459,21 @@
       showPauseMask(false);
     }
     if(st===YT.PlayerState.ENDED){
-      // エンド画面に入らせず即ルー
+      // エンド画面に入らせず即ループ
+      const t=0; seekBoth(t,true); playBoth();
+    }
+  }
+
+  // イントロ操作
+  introStart.onclick=()=>begin();
+  $('auto-start').onchange=(e)=>{ autoStart=!!e.target.checked; };
+
+  // シークUI→プレーヤー
+  function seekBoth(t,allow){ pA.seekTo(t,allow); pB.seekTo(t,allow); updateSeek(t); }
+
+  // ページ離脱
+  window.addEventListener('beforeunload',()=>{ stopLoop(); });
+
+  </script>
+</body>
+</html>
