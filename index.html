@@ -17,7 +17,7 @@
         form-action 'self';
       ">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>福島第一 ３Ｄ同期比較（2012/2025）— 起動安定版</title>
+<title>陸前高田・高田松原 ３Ｄ同期比較（2006 / 2025）— 安定・高速版</title>
 <style>
   :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; }
   *{box-sizing:border-box} html,body{height:100%}
@@ -56,7 +56,7 @@
   #pause-mask{position:absolute;inset:0;background:rgba(0,0,0,0.001);display:none;z-index:5}
   #pause-mask.on{display:block}
 
-  /* イントロ（全体タップでも開始できる） */
+  /* イントロ（全体タップでも開始） */
   #intro{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#0b0f1a88,#0b0f1a88);z-index:7;cursor:pointer}
   .intro-box{padding:20px 16px;background:rgba(15,17,23,.55);border:1px solid #20273a;border-radius:14px;backdrop-filter:blur(2px);text-align:center}
   .intro-title{font-weight:800;letter-spacing:.3px;font-size:clamp(16px,3vw,26px);margin-bottom:10px}
@@ -116,7 +116,7 @@
 <body>
   <div class="wrap">
     <div class="header">
-      <div class="title">福島第一 ３Ｄ同期比較（2012 / 2025）— 起動安定版</div>
+      <div class="title">陸前高田・高田松原 ３Ｄ同期比較（2006 / 2025）— 安定・高速版</div>
     </div>
 
     <div class="video-shell" id="video-shell" aria-label="比較ビュー">
@@ -159,7 +159,7 @@
         <div class="buttons" role="group" aria-label="表示モード">
           <button id="btn-mode-slider"      class="btn seg-btn" aria-pressed="true">スライダー比較</button>
           <button id="btn-mode-fade"        class="btn seg-btn" aria-pressed="false">フェード比較</button>
-          <button id="btn-mode-only-before" class="btn seg-btn" aria-pressed="false">2012のみ</button>
+          <button id="btn-mode-only-before" class="btn seg-btn" aria-pressed="false">2006のみ</button>
           <button id="btn-mode-only-after"  class="btn seg-btn" aria-pressed="false">2025のみ</button>
         </div>
       </div>
@@ -184,25 +184,24 @@
 
     <p class="note">
       動画提供:
-      <a href="https://youtu.be/WOw9BryHb_4" target="_blank" rel="noreferrer noopener">2012（2012-03-01撮影）</a>／
-      <a href="https://youtu.be/KKNWwr_9590" target="_blank" rel="noreferrer noopener">2025（2025-01-27撮影）</a>（YouTube）
+      <a href="https://youtu.be/pfhojhn_n74" target="_blank" rel="noreferrer noopener">2006（2006-07-27撮影の写真を基に作成）</a>／
+      <a href="https://youtu.be/pdL8hrIGdYA" target="_blank" rel="noreferrer noopener">2025（2025-06-05撮影の写真を基に作成）</a>（YouTube）
     </p>
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-  // ====== 設定（同期最優先・起動安定） ======
-  const VIDEO_A = { id:'WOw9BryHb_4', label:'2012' }; // leader
-  const VIDEO_B = { id:'KKNWwr_9590',  label:'2025' }; // follower
+  // ====== 設定（同期最優先・起動安定・軽量補正） ======
+  const VIDEO_A = { id:'pfhojhn_n74', label:'2006' }; // leader
+  const VIDEO_B = { id:'pdL8hrIGdYA', label:'2025' }; // follower
 
   const ua = navigator.userAgent;
   const isIOS = /iP(hone|ad|od)/i.test(ua);
-  const isAndroid = /Android/i.test(ua);
 
-  // 同期閾値（安定寄せ）
-  const FINE     = 0.08;         // 微小ズレ補正
-  const HARD     = 0.50;         // 大ズレ即seek
-  const COOLDOWN = isIOS ? 700 : 500; // 微小seekのクールダウン
+  // 同期閾値（控えめ補正でカクつき低減）
+  const FINE     = 0.12;              // 微小ズレ補正
+  const HARD     = 0.60;              // 大ズレ即seek
+  const COOLDOWN = isIOS ? 900 : 700; // 微小seekクールダウン
 
   // バッファ基準（iOSは高め）
   const MIN_FRAC    = isIOS ? 0.25 : 0.16;
@@ -210,17 +209,17 @@
   const RESYNC_FRAC = isIOS ? 0.35 : 0.24;
   const RESYNC_SEC  = isIOS ? 14   : 8;
 
-  // 画質：iOSはsmall固定、他は開始small→後で状況次第で上げる（ただし本版では安定優先でsmallのまま）
+  // 画質：安定優先（small固定）
   const QUALITY_LIST_IOS = ['small'];
-  const QUALITY_LIST_GEN = ['small']; // ←安定最優先。必要なら ['small','medium','large','hd720'] に拡張可
+  const QUALITY_LIST_GEN = ['small'];
   const QLIST = isIOS ? QUALITY_LIST_IOS : QUALITY_LIST_GEN;
 
   // ====== 状態 ======
   let pA=null, pB=null, readyA=false, readyB=false, playing=false;
   let introOn=true, autoStart=true, started=false;
   let raf=null, tickId=null, total=0, lastFine=0;
-  let lastHardOrPause=0;
-  let watchdogId=null; // 起動監視
+  let watchdogId=null;           // 起動監視
+  let endedA=false, endedB=false; // 両方ENDEDの時だけループ
 
   // ====== 要素 ======
   const $ = id => document.getElementById(id);
@@ -317,9 +316,6 @@
   seek.addEventListener('change',()=>seekBoth(parseFloat(seek.value),true));
 
   function seekBoth(t, allow){ pA.seekTo(t,allow); pB.seekTo(t,allow); updateSeek(t); }
-  function forceSyncOnPause(){
-    const t=pA.getCurrentTime?.()||0; pB.seekTo(t,false); updateSeek(t); lastHardOrPause = performance.now();
-  }
 
   // フルスクリーン（iOSは疑似、他はネイティブ→失敗時は疑似）
   function inNativeFS(){ return !!(document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement); }
@@ -328,27 +324,17 @@
   function enterPFS(){ document.body.classList.add('pfs'); fsExit.classList.add('on'); updateFsToolbar(); }
   function exitPFS(){ document.body.classList.remove('pfs'); fsExit.classList.remove('on'); updateFsToolbar(); }
   function inAnyFS(){ return inNativeFS() || document.body.classList.contains('pfs'); }
-  $('fs-enter').onclick=()=>{ if(isIOS){ document.body.classList.toggle('pfs'); updateFsToolbar(); fsExit.classList.toggle('on', inAnyFS()); } else { if(!reqNative(shell)) enterPFS(); }};
+  $('fs-enter').onclick=()=>{ if(isIOS){ document.body.classList.toggle('pfs'); updateFsToolbar(); $('fs-exit').classList.toggle('on', inAnyFS()); } else { if(!reqNative(shell)) enterPFS(); }};
   $('fs-exit').onclick=()=>{ exitNative(); exitPFS(); };
   document.addEventListener('fullscreenchange', ()=>{ $('fs-exit').classList.toggle('on', inAnyFS()); updateFsToolbar(); });
   function updateFsToolbar(){ if(inAnyFS() && mode==='fade'){ fsToolbar.classList.add('on'); } else { fsToolbar.classList.remove('on'); } }
 
   // ====== 同期ループ（速度補正なし・微小seekのみ） ======
   function syncStep(){
-    const stA=pA.getPlayerState?.(), stB=pB.getPlayerState?.();
-    const tA=pA.getCurrentTime?.()||0, tB=pB.getCurrentTime?.()||0;
+    if(!(pA&&pB)) return;
 
-    // どちらかが終端近辺なら即ループ
-    if(total>0){
-      const near = 0.35;
-      if((total - tA) <= near || (total - tB) <= near){
-        pA.seekTo(0,true); pB.seekTo(0,true);
-        if(playing){ try{pA.playVideo()}catch{}; try{pB.playVideo()}catch{}; }
-        updateSeek(0);
-        lastHardOrPause = performance.now();
-        return;
-      }
-    }
+    const stA=pA.getPlayerState?.(), stB=pB.getPlayerState?.();
+    const tA=pA.getCurrentTime?.()||0;
 
     // フォロワーBUFFERING中はリーダーも停止→十分バッファで同時再開
     if(stB===YT.PlayerState.BUFFERING){
@@ -362,6 +348,7 @@
       return;
     }
 
+    // どちらかが再生中でない場合はUIだけ更新
     if(stA!==YT.PlayerState.PLAYING || stB!==YT.PlayerState.PLAYING){
       updateSeek(tA); return;
     }
@@ -379,27 +366,26 @@
       return;
     }
 
+    // 微小同期（やりすぎるとカクつくので控えめ）
+    const tB=pB.getCurrentTime?.()||0;
     const drift = tB - tA;
     const abs   = Math.abs(drift);
     const now   = performance.now();
 
-    // 大補正
     if(abs > HARD){
       pB.seekTo(tA,true);
-      lastHardOrPause = now;
-    }
-    // 微小補正（クールダウン）
-    else if(abs > FINE && (now - lastFine) > COOLDOWN){
+    } else if(abs > FINE && (now - lastFine) > COOLDOWN){
       pB.seekTo(tA,false);
       lastFine=now;
     }
 
     updateSeek(tA);
   }
+
   function rAFLoop(){ syncStep(); raf=requestAnimationFrame(rAFLoop); }
   function startLoops(){
     if(!raf) raf=requestAnimationFrame(rAFLoop);
-    if(isIOS && !tickId){ tickId=setInterval(syncStep, 180); } // iOSはbackup tick
+    if(isIOS && !tickId){ tickId=setInterval(syncStep, 200); } // iOS backup tick（少し緩め）
   }
   function stopLoops(){
     if(raf){ cancelAnimationFrame(raf); raf=null; }
@@ -414,7 +400,7 @@
     return have>=need;
   }
 
-  // イントロと起動ウォッチドッグ（“止まる”のを潰す）
+  // イントロと起動ウォッチドッグ
   function updateIntro(){
     const fA=pA?.getVideoLoadedFraction?.()||0, fB=pB?.getVideoLoadedFraction?.()||0;
     const f=Math.max(0,Math.min(1,Math.min(fA,fB)));
@@ -423,32 +409,31 @@
   }
   function begin(){
     if(started) return; started=true;
+    endedA = endedB = false;
     pA.seekTo(0,true); pB.seekTo(0,true);
     playBoth();
     introOn=false; intro.style.display='none';
   }
   function armWatchdog(){
-    // 1.5秒ごとに起動状態を監視：PLAYINGでなければ強制やり直し
+    // 2.0秒ごとに軽く確認（過剰な強制再生を避ける）
     if(watchdogId) clearInterval(watchdogId);
     watchdogId = setInterval(()=>{
       const stA = pA?.getPlayerState?.();
       const stB = pB?.getPlayerState?.();
-      const ok = (stA===YT.PlayerState.PLAYING) && (stB===YT.PlayerState.PLAYING);
-      if(!ok){
-        // 両者small品質・0.1秒先に合わせて同時再生を試行（詰まり回避）
-        try{pA.setPlaybackQuality?.('small'); pB.setPlaybackQuality?.('small');}catch{}
-        const t = (pA?.getCurrentTime?.()||0) + 0.1;
-        pA.seekTo(t,true); pB.seekTo(t,true);
+      const bothReady = bufferedEnough(pA,RESYNC_FRAC,RESYNC_SEC) && bufferedEnough(pB,RESYNC_FRAC,RESYNC_SEC);
+      if(playing && bothReady && !(stA===YT.PlayerState.PLAYING && stB===YT.PlayerState.PLAYING)){
+        const t = pA?.getCurrentTime?.()||0;
+        seekBoth(t,true);
         try{pA.playVideo()}catch{}; try{pB.playVideo()}catch{};
       }
-    }, 1500);
+    }, 2000);
   }
 
   // YouTube IFrame API
   window.onYouTubeIframeAPIReady=function(){
-    const pv={ autoplay:1, controls:0, rel:0, modestbranding:1, playsinline:1, fs:0, iv_load_policy:3, loop:1, disablekb:1, cc_load_policy:0, origin:location.origin };
-    pA=new YT.Player('yt-before',{ videoId:'WOw9BryHb_4', playerVars:{...pv, playlist:'WOw9BryHb_4'}, events:{ onReady:e=>onReady('A',e), onStateChange:onState }});
-    pB=new YT.Player('yt-after' ,{ videoId:'KKNWwr_9590',  playerVars:{...pv, playlist:'KKNWwr_9590'},  events:{ onReady:e=>onReady('B',e), onStateChange:onState }});
+    const pv={ autoplay:1, controls:0, rel:0, modestbranding:1, playsinline:1, fs:0, iv_load_policy:3, loop:0, disablekb:1, cc_load_policy:0, origin:location.origin };
+    pA=new YT.Player('yt-before',{ videoId: VIDEO_A.id, playerVars:{...pv, playlist: VIDEO_A.id}, events:{ onReady:e=>onReady('A',e), onStateChange:onState }});
+    pB=new YT.Player('yt-after' ,{ videoId: VIDEO_B.id, playerVars:{...pv, playlist: VIDEO_B.id}, events:{ onReady:e=>onReady('B',e), onStateChange:onState }});
   };
   function onReady(which,e){
     try{ e.target.mute(); }catch{}
@@ -460,46 +445,64 @@
       total=Math.min(dA||0,dB||0); updateSeek(0);
       setMode('slider'); applySplit(50);
 
-      // イントロ：十分バッファで開始 or タップで開始
       const id=setInterval(()=>{
         const f=updateIntro();
         if( f>=MIN_FRAC && bufferedEnough(pA) && bufferedEnough(pB) ){
           clearInterval(id);
           introSub.textContent = '準備完了';
-          $('intro-start').disabled=false;
+          introStart.disabled=false;
           if(autoStart){ setTimeout(()=>{ if(introOn) begin(); }, 400); }
         } else {
           introSub.textContent = '同期準備中… バッファリング中（低画質で開始）';
         }
       },180);
 
-      // 起動ウォッチドッグ
       armWatchdog();
     }
   }
+
+  function tryLoopIfBothEnded(){
+    if(endedA && endedB){
+      endedA = endedB = false;
+      // 両方が終了したのを確認してから、同時に頭出し→再生
+      pA.seekTo(0,true); pB.seekTo(0,true);
+      updateSeek(0);
+      if(!introOn){ playBoth(); }
+    }
+  }
+
   function onState(ev){
     if(!(pA&&pB)) return;
     const st=ev.data;
 
-    if(st===YT.PlayerState.PAUSED){ forceSyncOnPause(); pauseBoth(); }
-    if(st===YT.PlayerState.PLAYING){ if(!playing && !introOn) playBoth(); showPauseMask(false); }
+    if(st===YT.PlayerState.PAUSED){
+      // 手動一時停止時は位置合わせのみ（カクつき防止）
+      const t=pA.getCurrentTime?.()||0; pB.seekTo(t,false); updateSeek(t);
+      pauseBoth();
+    }
+
+    if(st===YT.PlayerState.PLAYING){
+      if(!playing && !introOn) playBoth();
+      showPauseMask(false);
+    }
+
     if(st===YT.PlayerState.ENDED){
-      // 二重保険：終了イベントでも確実にループ
-      pA.seekTo(0,true); pB.seekTo(0,true);
-      playBoth();
-      updateSeek(0);
+      // 片方が終わっても即ループしない。両方ENDEDを待つ
+      endedA = (pA.getPlayerState?.()===YT.PlayerState.ENDED);
+      endedB = (pB.getPlayerState?.()===YT.PlayerState.ENDED);
+      tryLoopIfBothEnded();
     }
   }
 
-  // イントロ操作（全体タップでも開始）
-  $('intro-start').onclick=()=>begin();
-  $('intro').onclick=(e)=>{ if(e.target.id==='intro' || e.target.closest('.intro-box')) begin(); };
+  // イントロ操作
+  introStart.onclick=()=>begin();
+  intro.onclick=(e)=>{ if(e.target.id==='intro' || e.target.closest('.intro-box')) begin(); };
   $('auto-start').onchange=(e)=>{ autoStart=!!e.target.checked; };
 
   // タブ非表示時の節電：iOSバックアップtickを止める
   document.addEventListener('visibilitychange', ()=>{
     if(document.hidden){ if(tickId){ clearInterval(tickId); tickId=null; } }
-    else if(isIOS && playing && !tickId){ tickId=setInterval(syncStep,180); }
+    else if(isIOS && playing && !tickId){ tickId=setInterval(syncStep,200); }
   });
 
   // ページ離脱
