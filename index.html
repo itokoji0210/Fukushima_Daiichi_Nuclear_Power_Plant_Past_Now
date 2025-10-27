@@ -17,8 +17,7 @@
         form-action 'self';
       ">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>福島第一 ３Ｄ同期比較（2012/2025）— iPhone/Android/PC 最適化</title>
-<meta name="description" content="iPhoneで同期最優先。通信が遅いときは画質を落としてでも“ピタッと同期”。停止フレーム一致、全画面でもフェード可能、縦画面は100dvhでフィット。" />
+<title>福島第一 ３Ｄ同期比較（2012/2025）— 起動安定版</title>
 <style>
   :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; }
   *{box-sizing:border-box} html,body{height:100%}
@@ -57,8 +56,8 @@
   #pause-mask{position:absolute;inset:0;background:rgba(0,0,0,0.001);display:none;z-index:5}
   #pause-mask.on{display:block}
 
-  /* イントロ */
-  #intro{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#0b0f1a88,#0b0f1a88);z-index:7}
+  /* イントロ（全体タップでも開始できる） */
+  #intro{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#0b0f1a88,#0b0f1a88);z-index:7;cursor:pointer}
   .intro-box{padding:20px 16px;background:rgba(15,17,23,.55);border:1px solid #20273a;border-radius:14px;backdrop-filter:blur(2px);text-align:center}
   .intro-title{font-weight:800;letter-spacing:.3px;font-size:clamp(16px,3vw,26px);margin-bottom:10px}
   .intro-sub{color:var(--muted);font-size:13px;margin-bottom:8px}
@@ -112,14 +111,12 @@
     .video-shell{ width: 100vw; border-radius: 0; }
     .panel{ margin: 0; border-radius: 0; }
   }
-
-  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 </style>
 </head>
 <body>
   <div class="wrap">
     <div class="header">
-      <div class="title">福島第一 ３Ｄ同期比較（2012 / 2025）— iPhone/Android/PC最適化</div>
+      <div class="title">福島第一 ３Ｄ同期比較（2012 / 2025）— 起動安定版</div>
     </div>
 
     <div class="video-shell" id="video-shell" aria-label="比較ビュー">
@@ -143,10 +140,10 @@
         <span id="fade-pct-fs" class="time">50%</span>
       </div>
 
-      <!-- イントロ -->
+      <!-- イントロ（どこをタップしても開始） -->
       <div id="intro" role="dialog" aria-modal="true">
         <div class="intro-box">
-          <div class="intro-title">同期準備中…（起動は低画質）</div>
+          <div class="intro-title">同期準備中…（まずは低画質で確実に開始）</div>
           <div class="intro-sub" id="intro-sub">バッファを十分に確保しています</div>
           <div class="bar" id="intro-bar" style="--p:0%"></div>
           <div class="intro-row">
@@ -194,7 +191,7 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-  // ====== 設定 ======
+  // ====== 設定（同期最優先・起動安定） ======
   const VIDEO_A = { id:'WOw9BryHb_4', label:'2012' }; // leader
   const VIDEO_B = { id:'KKNWwr_9590',  label:'2025' }; // follower
 
@@ -202,37 +199,28 @@
   const isIOS = /iP(hone|ad|od)/i.test(ua);
   const isAndroid = /Android/i.test(ua);
 
-  // iOSは徹底的に同期優先：閾値を厳しめ、速度補正OFF、画質アップOFF
-  const FINE     = isIOS ? 0.08 : isAndroid ? 0.09 : 0.08;
-  const HARD     = 0.50;
-  const COOLDOWN = isIOS ? 700  : isAndroid ? 600  : 500;
+  // 同期閾値（安定寄せ）
+  const FINE     = 0.08;         // 微小ズレ補正
+  const HARD     = 0.50;         // 大ズレ即seek
+  const COOLDOWN = isIOS ? 700 : 500; // 微小seekのクールダウン
 
-  const RATE_NORM=1, RATE_FAST=1.25, RATE_SLOW=0.75;
-  const USE_RATE = !isIOS; // iOSは速度補正を使わない
-  const RATE_DEAD= 0.10, RATE_MAX_HOLD_MS=3000;
+  // バッファ基準（iOSは高め）
+  const MIN_FRAC    = isIOS ? 0.25 : 0.16;
+  const MIN_SEC     = isIOS ? 10   : 6;
+  const RESYNC_FRAC = isIOS ? 0.35 : 0.24;
+  const RESYNC_SEC  = isIOS ? 14   : 8;
 
-  // バッファ基準（iOSは更に多め）
-  const MIN_FRAC    = isIOS ? 0.25 : isAndroid ? 0.16 : 0.12;
-  const MIN_SEC     = isIOS ? 10   : isAndroid ? 6    : 5;
-  const RESYNC_FRAC = isIOS ? 0.35 : isAndroid ? 0.24 : 0.20;
-  const RESYNC_SEC  = isIOS ? 14   : isAndroid ? 10   : 8;
-
-  // 画質：iOSはsmall固定（強制ダウンシフト優先）
-  const QUALITY_ORDER_IOS = ['small'];
-  const QUALITY_ORDER_GEN = ['small','medium','large','hd720','hd1080'];
-
-  // iOSはアップグレード無効
-  const UPGRADE_ENABLED   = !isIOS;
-  const UPGRADE_FRAC      = isAndroid ? 0.65 : 0.60;
-  const UPGRADE_STABLE_MS = isAndroid ? 10000: 9000;
+  // 画質：iOSはsmall固定、他は開始small→後で状況次第で上げる（ただし本版では安定優先でsmallのまま）
+  const QUALITY_LIST_IOS = ['small'];
+  const QUALITY_LIST_GEN = ['small']; // ←安定最優先。必要なら ['small','medium','large','hd720'] に拡張可
+  const QLIST = isIOS ? QUALITY_LIST_IOS : QUALITY_LIST_GEN;
 
   // ====== 状態 ======
   let pA=null, pB=null, readyA=false, readyB=false, playing=false;
   let introOn=true, autoStart=true, started=false;
   let raf=null, tickId=null, total=0, lastFine=0;
-  let rateMode='norm', rateSince=0, lastHardOrPause=0, stableStart=0;
-  const qIndex = { A:0, B:0 }; // 現在の品質インデックス
-  const QLIST  = isIOS ? QUALITY_ORDER_IOS : QUALITY_ORDER_GEN;
+  let lastHardOrPause=0;
+  let watchdogId=null; // 起動監視
 
   // ====== 要素 ======
   const $ = id => document.getElementById(id);
@@ -251,17 +239,17 @@
   function setActive(el,on){ el.setAttribute('aria-pressed', on?'true':'false'); }
   function applySplit(p){ p=Math.max(0,Math.min(100,p)); layerB.style.clipPath=`inset(0 0 0 ${p}%)`; slider.style.left=p+'%'; }
   function syncFadeValue(v){
-    fadePct.textContent=v+'%';
-    fadePctFS.textContent=v+'%';
-    if(mode==='fade'){ layerB.style.opacity=(v/100).toFixed(2); }
+    const vv = Number(v)||50;
+    $('fade-pct').textContent = vv+'%';
+    $('fade-pct-fs').textContent = vv+'%';
+    if(mode==='fade'){ layerB.style.opacity=(vv/100).toFixed(2); }
   }
   function setMode(m){
     mode=m;
     setActive(btnSlider,m==='slider'); setActive(btnFade,m==='fade'); setActive(btnA,m==='only-a'); setActive(btnB,m==='only-b');
     layerA.style.display=''; layerB.style.display='';
     if(m==='fade'){
-      layerB.style.clipPath=''; layerB.style.width='100%';
-      syncFadeValue(fadeRange.valueAsNumber);
+      layerB.style.clipPath=''; layerB.style.width='100%'; syncFadeValue(fadeRange.valueAsNumber);
       slider.hidden=true; fadeRow.style.display=''; updateFsToolbar();
     }else if(m==='slider'){
       fadeRow.style.display='none'; fsToolbar.classList.remove('on');
@@ -269,18 +257,16 @@
     }else if(m==='only-a'){
       slider.hidden=true; fadeRow.style.display='none'; fsToolbar.classList.remove('on'); layerB.style.display='none';
     }else if(m==='only-b'){
-      slider.hidden=true; fadeRow.style.display='none'; fsToolbar.classList.remove('on'); layerB.style.display=''; layerB.style.opacity=1; layerB.style.clipPath='inset(0 0 0 0)';
+      slider.hidden=true; fadeRow.style.display='none'; fsToolbar.classList.remove('on');
+      layerB.style.display=''; layerB.style.opacity=1; layerB.style.clipPath='inset(0 0 0 0)';
     }
   }
   btnSlider.onclick=()=>setMode('slider');
   btnFade.onclick=()=>setMode('fade');
   btnA.onclick=()=>setMode('only-a');
   btnB.onclick=()=>setMode('only-b');
-
-  // フェード値の双方向同期
-  function onFadeInput(v){ fadeRange.value=v; fadeRangeFS.value=v; syncFadeValue(Number(v)); }
-  fadeRange.oninput  = e => onFadeInput(e.target.value);
-  fadeRangeFS.oninput= e => onFadeInput(e.target.value);
+  fadeRange.oninput  = e => syncFadeValue(e.target.value);
+  fadeRangeFS.oninput= e => syncFadeValue(e.target.value);
 
   // スライダードラッグ
   let dragging=false;
@@ -315,8 +301,8 @@
 
   // 再生/停止（停止位置を必ず一致）
   function showPauseMask(on){ pauseMask.classList.toggle('on', !!on); }
-  function playBoth(){ try{pA.playVideo()}catch{} try{pB.playVideo()}catch{} playing=true; playBtn.textContent='⏸ 一時停止'; playBtn.setAttribute('aria-pressed','true'); showPauseMask(false); startLoops(); }
-  function pauseBoth(){ try{pA.pauseVideo()}catch{} try{pB.pauseVideo()}catch{} playing=false; playBtn.textContent='▶ 再生'; playBtn.setAttribute('aria-pressed','false'); showPauseMask(true); stopLoops(); }
+  function playBoth(){ try{pA.playVideo()}catch{}; try{pB.playVideo()}catch{}; playing=true; playBtn.textContent='⏸ 一時停止'; playBtn.setAttribute('aria-pressed','true'); showPauseMask(false); startLoops(); }
+  function pauseBoth(){ try{pA.pauseVideo()}catch{}; try{pB.pauseVideo()}catch{}; playing=false; playBtn.textContent='▶ 再生'; playBtn.setAttribute('aria-pressed','false'); showPauseMask(true); stopLoops(); }
   $('play-pause').onclick=()=>{ if(!(readyA&&readyB) || introOn) return; playing?pauseBoth():playBoth(); };
   $('rewind-5').onclick=()=>nudge(-5);
   $('forward-5').onclick=()=>nudge(+5);
@@ -330,76 +316,24 @@
   seek.addEventListener('input',()=>updateSeek(parseFloat(seek.value)));
   seek.addEventListener('change',()=>seekBoth(parseFloat(seek.value),true));
 
+  function seekBoth(t, allow){ pA.seekTo(t,allow); pB.seekTo(t,allow); updateSeek(t); }
   function forceSyncOnPause(){
-    const t=pA.getCurrentTime?.()||0; // leader の時間
-    pB.seekTo(t,false);
-    updateSeek(t);
-    lastHardOrPause = performance.now();
+    const t=pA.getCurrentTime?.()||0; pB.seekTo(t,false); updateSeek(t); lastHardOrPause = performance.now();
   }
 
   // フルスクリーン（iOSは疑似、他はネイティブ→失敗時は疑似）
   function inNativeFS(){ return !!(document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement); }
-  function reqNative(el){
-    const f=el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen||el.mozRequestFullScreen;
-    try{ f?.call(el); return !!f; }catch{ return false; }
-  }
-  function exitNative(){
-    const f=document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen||document.mozCancelFullScreen;
-    try{ f?.call(document); return !!f; }catch{ return false; }
-  }
+  function reqNative(el){ const f=el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen||el.mozRequestFullScreen; try{ f?.call(el); return !!f; }catch{ return false; } }
+  function exitNative(){ const f=document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen||document.mozCancelFullScreen; try{ f?.call(document); return !!f; }catch{ return false; } }
   function enterPFS(){ document.body.classList.add('pfs'); fsExit.classList.add('on'); updateFsToolbar(); }
   function exitPFS(){ document.body.classList.remove('pfs'); fsExit.classList.remove('on'); updateFsToolbar(); }
   function inAnyFS(){ return inNativeFS() || document.body.classList.contains('pfs'); }
   $('fs-enter').onclick=()=>{ if(isIOS){ document.body.classList.toggle('pfs'); updateFsToolbar(); fsExit.classList.toggle('on', inAnyFS()); } else { if(!reqNative(shell)) enterPFS(); }};
   $('fs-exit').onclick=()=>{ exitNative(); exitPFS(); };
   document.addEventListener('fullscreenchange', ()=>{ $('fs-exit').classList.toggle('on', inAnyFS()); updateFsToolbar(); });
-
   function updateFsToolbar(){ if(inAnyFS() && mode==='fade'){ fsToolbar.classList.add('on'); } else { fsToolbar.classList.remove('on'); } }
 
-  // 画質制御（iOSはsmall固定／他は段階アップ＆即ダウン）
-  function applyQuality(p, which, idx){
-    qIndex[which] = Math.max(0, Math.min(QLIST.length-1, idx));
-    try{ p.setPlaybackQuality?.(QLIST[qIndex[which]]); }catch{}
-  }
-  function lowerQualityHard(){
-    // 迷ったら即smallへ（同期最優先）
-    applyQuality(pA,'A',0); applyQuality(pB,'B',0);
-  }
-  function lowerQualityIfThin(){
-    const now = performance.now();
-    if(now - lastHardOrPause < 1000) return;
-    const fA=pA.getVideoLoadedFraction?.()||0, fB=pB.getVideoLoadedFraction?.()||0;
-    if(fA<MIN_FRAC || fB<MIN_FRAC){ applyQuality(pA,'A',0); applyQuality(pB,'B',0); }
-  }
-  function maybeUpgradeQuality(driftAbs){
-    if(!UPGRADE_ENABLED) return;
-    const fA=pA.getVideoLoadedFraction?.()||0, fB=pB.getVideoLoadedFraction?.()||0;
-    const now = performance.now();
-    if(fA>=UPGRADE_FRAC && fB>=UPGRADE_FRAC && driftAbs<=FINE){
-      if(stableStart===0) stableStart = now;
-      if(now - stableStart >= UPGRADE_STABLE_MS){
-        if(qIndex.A < QLIST.length-1) applyQuality(pA,'A',qIndex.A+1);
-        if(qIndex.B < QLIST.length-1) applyQuality(pB,'B',qIndex.B+1);
-        stableStart = 0;
-      }
-    }else{
-      stableStart = 0;
-    }
-  }
-
-  // バッファ判定
-  function bufferedEnough(p, frac=MIN_FRAC, sec=MIN_SEC){
-    const d=p.getDuration?.()||0, f=p.getVideoLoadedFraction?.()||0;
-    const have=Math.max(f*d, p.getCurrentTime?.()||0);
-    const need=Math.max(frac*d, sec);
-    return have>=need;
-  }
-
-  // 同期基本操作
-  function seekBoth(t, allow){ pA.seekTo(t,allow); pB.seekTo(t,allow); updateSeek(t); }
-  function setRate(p, r){ try{ p.setPlaybackRate?.(r); }catch{} }
-
-  // ====== 同期ループ（rAF + iOSはinterval併用） ======
+  // ====== 同期ループ（速度補正なし・微小seekのみ） ======
   function syncStep(){
     const stA=pA.getPlayerState?.(), stB=pB.getPlayerState?.();
     const tA=pA.getCurrentTime?.()||0, tB=pB.getCurrentTime?.()||0;
@@ -409,22 +343,20 @@
       const near = 0.35;
       if((total - tA) <= near || (total - tB) <= near){
         pA.seekTo(0,true); pB.seekTo(0,true);
-        if(playing){ try{pA.playVideo()}catch{} try{pB.playVideo()}catch{} }
+        if(playing){ try{pA.playVideo()}catch{}; try{pB.playVideo()}catch{}; }
         updateSeek(0);
         lastHardOrPause = performance.now();
         return;
       }
     }
 
-    // フォロワーがBUFFERINGの間はリーダーも止めて待つ（iOS重視）
+    // フォロワーBUFFERING中はリーダーも停止→十分バッファで同時再開
     if(stB===YT.PlayerState.BUFFERING){
-      lowerQualityHard();
-      if(stA===YT.PlayerState.PLAYING) try{pA.pauseVideo()}catch{};
-      // バッファ溜まったら同時再開
+      try{pA.pauseVideo()}catch{};
       if(bufferedEnough(pA,RESYNC_FRAC,RESYNC_SEC) && bufferedEnough(pB,RESYNC_FRAC,RESYNC_SEC)){
         const t = pA.getCurrentTime?.()||tA;
         seekBoth(t,true);
-        if(!introOn){ try{pA.playVideo()}catch{} try{pB.playVideo()}catch{} playing=true; showPauseMask(false); }
+        if(!introOn){ try{pA.playVideo()}catch{}; try{pB.playVideo()}catch{}; playing=true; showPauseMask(false); }
       }
       updateSeek(tA);
       return;
@@ -434,9 +366,8 @@
       updateSeek(tA); return;
     }
 
-    // バッファ薄ければ一度止めて十分に貯める
+    // バッファ薄なら一旦止めて貯める（画質は常にsmall）
     if(!(bufferedEnough(pA) && bufferedEnough(pB))){
-      lowerQualityHard();
       try{pA.pauseVideo()}catch{}; try{pB.pauseVideo()}catch{};
       const id=setInterval(()=>{
         if(bufferedEnough(pA,RESYNC_FRAC,RESYNC_SEC) && bufferedEnough(pB,RESYNC_FRAC,RESYNC_SEC)){
@@ -454,31 +385,15 @@
 
     // 大補正
     if(abs > HARD){
-      lowerQualityHard();
       pB.seekTo(tA,true);
-      if(USE_RATE){ setRate(pB, RATE_NORM); rateMode='norm'; rateSince=now; }
       lastHardOrPause = now;
     }
-    // 微小補正（クールダウン付き）
+    // 微小補正（クールダウン）
     else if(abs > FINE && (now - lastFine) > COOLDOWN){
       pB.seekTo(tA,false);
       lastFine=now;
     }
-    // 速度補正（iOSは使わない）
-    else if(USE_RATE){
-      let want='norm';
-      if(drift >  RATE_DEAD) want='fast';
-      if(drift < -RATE_DEAD) want='slow';
-      if(want!==rateMode || (now-rateSince)>RATE_MAX_HOLD_MS){
-        rateMode=want; rateSince=now;
-        if(want==='fast') setRate(pB,RATE_FAST);
-        else if(want==='slow') setRate(pB,RATE_SLOW);
-        else setRate(pB,RATE_NORM);
-      }
-    }
 
-    lowerQualityIfThin();
-    maybeUpgradeQuality(abs);
     updateSeek(tA);
   }
   function rAFLoop(){ syncStep(); raf=requestAnimationFrame(rAFLoop); }
@@ -491,7 +406,15 @@
     if(tickId){ clearInterval(tickId); tickId=null; }
   }
 
-  // イントロ
+  // バッファ判定
+  function bufferedEnough(p, frac=MIN_FRAC, sec=MIN_SEC){
+    const d=p.getDuration?.()||0, f=p.getVideoLoadedFraction?.()||0;
+    const have=Math.max(f*d, p.getCurrentTime?.()||0);
+    const need=Math.max(frac*d, sec);
+    return have>=need;
+  }
+
+  // イントロと起動ウォッチドッグ（“止まる”のを潰す）
   function updateIntro(){
     const fA=pA?.getVideoLoadedFraction?.()||0, fB=pB?.getVideoLoadedFraction?.()||0;
     const f=Math.max(0,Math.min(1,Math.min(fA,fB)));
@@ -504,12 +427,28 @@
     playBoth();
     introOn=false; intro.style.display='none';
   }
+  function armWatchdog(){
+    // 1.5秒ごとに起動状態を監視：PLAYINGでなければ強制やり直し
+    if(watchdogId) clearInterval(watchdogId);
+    watchdogId = setInterval(()=>{
+      const stA = pA?.getPlayerState?.();
+      const stB = pB?.getPlayerState?.();
+      const ok = (stA===YT.PlayerState.PLAYING) && (stB===YT.PlayerState.PLAYING);
+      if(!ok){
+        // 両者small品質・0.1秒先に合わせて同時再生を試行（詰まり回避）
+        try{pA.setPlaybackQuality?.('small'); pB.setPlaybackQuality?.('small');}catch{}
+        const t = (pA?.getCurrentTime?.()||0) + 0.1;
+        pA.seekTo(t,true); pB.seekTo(t,true);
+        try{pA.playVideo()}catch{}; try{pB.playVideo()}catch{};
+      }
+    }, 1500);
+  }
 
   // YouTube IFrame API
   window.onYouTubeIframeAPIReady=function(){
     const pv={ autoplay:1, controls:0, rel:0, modestbranding:1, playsinline:1, fs:0, iv_load_policy:3, loop:1, disablekb:1, cc_load_policy:0, origin:location.origin };
-    pA=new YT.Player('yt-before',{ videoId:VIDEO_A.id, playerVars:{...pv, playlist:VIDEO_A.id}, events:{ onReady:e=>onReady('A',e), onStateChange:onState }});
-    pB=new YT.Player('yt-after' ,{ videoId:VIDEO_B.id, playerVars:{...pv, playlist:VIDEO_B.id}, events:{ onReady:e=>onReady('B',e), onStateChange:onState }});
+    pA=new YT.Player('yt-before',{ videoId:'WOw9BryHb_4', playerVars:{...pv, playlist:'WOw9BryHb_4'}, events:{ onReady:e=>onReady('A',e), onStateChange:onState }});
+    pB=new YT.Player('yt-after' ,{ videoId:'KKNWwr_9590',  playerVars:{...pv, playlist:'KKNWwr_9590'},  events:{ onReady:e=>onReady('B',e), onStateChange:onState }});
   };
   function onReady(which,e){
     try{ e.target.mute(); }catch{}
@@ -521,31 +460,26 @@
       total=Math.min(dA||0,dB||0); updateSeek(0);
       setMode('slider'); applySplit(50);
 
-      // iOSは起動〜再生中もsmall固定
-      if(isIOS){ applyQuality(pA,'A',0); applyQuality(pB,'B',0); }
-
+      // イントロ：十分バッファで開始 or タップで開始
       const id=setInterval(()=>{
         const f=updateIntro();
         if( f>=MIN_FRAC && bufferedEnough(pA) && bufferedEnough(pB) ){
           clearInterval(id);
           introSub.textContent = '準備完了';
           $('intro-start').disabled=false;
-          if(autoStart){ setTimeout(()=>{ if(introOn) begin(); }, 500); }
+          if(autoStart){ setTimeout(()=>{ if(introOn) begin(); }, 400); }
         } else {
           introSub.textContent = '同期準備中… バッファリング中（低画質で開始）';
         }
       },180);
+
+      // 起動ウォッチドッグ
+      armWatchdog();
     }
   }
   function onState(ev){
     if(!(pA&&pB)) return;
     const st=ev.data;
-
-    // iOSでの安定策：フォロワー側BUFFERING時はリーダーも止める
-    if(st===YT.PlayerState.BUFFERING && ev.target===pB){
-      lowerQualityHard();
-      try{pA.pauseVideo()}catch{};
-    }
 
     if(st===YT.PlayerState.PAUSED){ forceSyncOnPause(); pauseBoth(); }
     if(st===YT.PlayerState.PLAYING){ if(!playing && !introOn) playBoth(); showPauseMask(false); }
@@ -557,8 +491,9 @@
     }
   }
 
-  // イントロ操作
+  // イントロ操作（全体タップでも開始）
   $('intro-start').onclick=()=>begin();
+  $('intro').onclick=(e)=>{ if(e.target.id==='intro' || e.target.closest('.intro-box')) begin(); };
   $('auto-start').onchange=(e)=>{ autoStart=!!e.target.checked; };
 
   // タブ非表示時の節電：iOSバックアップtickを止める
@@ -568,7 +503,7 @@
   });
 
   // ページ離脱
-  window.addEventListener('beforeunload',()=>{ stopLoops(); });
+  window.addEventListener('beforeunload',()=>{ if(watchdogId) clearInterval(watchdogId); stopLoops(); });
   </script>
 </body>
 </html>
