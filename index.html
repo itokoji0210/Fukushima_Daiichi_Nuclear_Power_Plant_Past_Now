@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
+  <!-- CSP：YouTubeのみ許可 -->
   <meta http-equiv="Content-Security-Policy"
         content="
           default-src 'self';
@@ -17,8 +18,8 @@
           form-action 'self';
         ">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>福島第一 ３Ｄ動画 被災翌年/現在（同期比較・停止比較・フルスクリーン対応）</title>
-  <meta name="description" content="福島第一原発の3DGS（2012/2025）を同期再生。停止フレーム比較＆フェード/スライダー、全画面でも操作可能。" />
+  <title>福島第一 ３Ｄ動画 被災翌年/現在（同期比較・停止比較・FS対応）</title>
+  <meta name="description" content="福島第一原発3DGS（2012/2025）を同期再生。停止フレーム比較、フェード/スライダー、全画面（未対応環境は疑似FS）対応。" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%235b9cff'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='56' fill='white' font-family='Arial, sans-serif'%3EF%3C/text%3E%3C/svg%3E" />
   <style>
     :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; }
@@ -28,6 +29,12 @@
     .header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
     .title{font-size:clamp(18px,2.4vw,28px);font-weight:700}
     .note{color:var(--muted);font-size:12px}
+
+    /* 疑似フルスクリーン用（iOS等）★ */
+    .pseudo-fs body, body.pseudo-fs {overflow:hidden;}
+    body.pseudo-fs .wrap{max-width:none;padding:0}
+    body.pseudo-fs .video-shell{position:fixed;inset:0;z-index:9999;border-radius:0;width:100vw;aspect-ratio:auto}
+    body.pseudo-fs .panel{position:fixed;left:0;right:0;bottom:0;margin:0;border-radius:0}
 
     .video-shell{
       position:relative;
@@ -59,17 +66,15 @@
     .btn-primary{background:linear-gradient(180deg,#2a6cff,#164cff);color:#fff;border:1px solid #335fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
     .btn-primary[disabled]{opacity:.6;cursor:not-allowed}
 
-    /* 自動再生不可/エンド時にだけ使うシールド（通常の一時停止では出さない） */
+    /* ポーズ時の極薄シールド（中央アイコンを隠す／フレームは見える）★ */
     #pause-shield{
-      position:absolute;inset:0;background:#0b0d13;display:none;align-items:center;justify-content:center;z-index:7;
+      position:absolute;inset:0;background:rgba(0,0,0,0.001); /* ほぼ透明でも前面に来るので下のUIを隠せる */
+      display:none;z-index:7;
     }
-    #pause-shield.visible{display:flex}
-    .overlay-button{
-      background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);
-      border:1px solid #26324a;padding:12px 16px;border-radius:999px;font-weight:800;cursor:pointer
-    }
+    #pause-shield.visible{display:block}
+    .overlay-button{display:none} /* 自動再生不可の時だけ別途使うので通常は非表示にする */
 
-    /* フルスクリーン */
+    /* フルスクリーンボタン */
     .fs-btn{
       position:absolute;top:10px;right:10px;z-index:8;
       background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);
@@ -127,11 +132,11 @@
 <body>
   <div class="wrap">
     <div class="header">
-      <div class="title">福島第一 ３Ｄ動画 被災翌年/現在（同期比較・停止比較・フルスクリーン対応）</div>
+      <div class="title">福島第一 ３Ｄ動画 被災翌年/現在（同期比較・停止比較・FS対応）</div>
     </div>
 
     <div class="video-shell" id="video-shell" aria-label="比較ビュー">
-      <!-- フルスクリーンUI（右上：入る / 左上：戻る） -->
+      <!-- 全画面：入る / 戻る -->
       <button id="fs-enter" class="fs-btn" aria-label="全画面表示">⤢ 全画面</button>
       <button id="fs-exit" class="fs-exit" aria-label="全画面を終了">⤡ 戻る</button>
 
@@ -141,10 +146,8 @@
       <!-- スライダー -->
       <div class="slider-handle" id="slider-handle" hidden><div class="slider-dot"></div></div>
 
-      <!-- 自動再生不可やエンド時のみ使うシールド（通常の一時停止では使わない） -->
-      <div id="pause-shield" aria-hidden="true">
-        <button id="overlay-play" class="overlay-button" aria-label="再生再開">▶ 再生</button>
-      </div>
+      <!-- ポーズ時のみ出す極薄シールド（イントロ中は出さない）★ -->
+      <div id="pause-shield" aria-hidden="true"></div>
 
       <!-- イントロ -->
       <div class="layer" id="intro-overlay" role="dialog" aria-modal="true">
@@ -161,7 +164,7 @@
 
     <div class="panel controls">
       <div class="row">
-        <div class="buttons" id="mode-buttons" role="group" aria-label="表示モード">
+        <div class="buttons" role="group" aria-label="表示モード">
           <button id="btn-mode-slider"      class="btn seg-btn" aria-pressed="true">スライダー比較</button>
           <button id="btn-mode-fade"        class="btn seg-btn" aria-pressed="false">フェード比較</button>
           <button id="btn-mode-only-before" class="btn seg-btn" aria-pressed="false">被災翌年のみ</button>
@@ -196,25 +199,22 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    // ==== Config（動画ID）====
+    // ==== 動画ID ====
     const VIDEO_BEFORE = { id: 'WOw9BryHb_4', label: '被災翌年' };
     const VIDEO_AFTER  = { id: 'KKNWwr_9590', label: '現在' };
 
-    // 同期・適応制御
+    // ==== 同期・適応制御 ====
     const SYNC_FINE = 0.08, SYNC_HARD = 0.50, FINE_COOLDOWN_MS = 500;
     const MIN_BUFFER_FRAC = 0.10, MIN_BUFFER_SEC = 5;
     const RESYNC_BUFFER_FRAC = 0.18, RESYNC_BUFFER_SEC = 8;
     const AUTOPLAY_WATCH_MS_1 = 500, AUTOPLAY_WATCH_MS_2 = 1500;
-    const QUALITY_ORDER = ['hd1080','hd720','large','medium','small'];
 
-    // ==== State ====
     let playerBefore=null, playerAfter=null, duration=0;
     let isReadyA=false, isReadyB=false, isPlaying=false;
-    let introRunning=true, autoplayBlocked=false, autoStartEnabled=true, started=false;
+    let introRunning=true, autoplayBlocked=false, started=false;
     let rafId=null, intervalId=null, lastFineAdjustAt=0;
     let bufferWatchTimer=null, followerHolding=false;
 
-    // ==== Elements ====
     const el=id=>document.getElementById(id);
     const layerBefore=el('layer-before'), layerAfter=el('layer-after'), shell=el('video-shell');
     const sliderHandle=el('slider-handle'), playPause=el('play-pause');
@@ -223,29 +223,13 @@
     const introOverlay=el('intro-overlay'), introBtn=el('intro-start-btn'), introSub=el('intro-sub');
     const introProgBar=el('intro-progress-bar'), introProgLabel=el('intro-progress-label'), introAuto=el('intro-autostart');
     const btnModeSlider=el('btn-mode-slider'), btnModeFade=el('btn-mode-fade'), btnOnlyBefore=el('btn-mode-only-before'), btnOnlyAfter=el('btn-mode-only-after');
-    const pauseShield=el('pause-shield'), overlayPlay=el('overlay-play');
+    const pauseShield=el('pause-shield');
     const fsEnter=el('fs-enter'), fsExit=el('fs-exit');
 
-    // ==== Helpers ====
-    let currentMode='slider'; // slider | fade | only-before | only-after
-    function formatTime(sec){const s=Math.max(0,Math.floor(sec||0));const m=Math.floor(s/60),r=s%60;return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`}
+    // 表示モード
+    let currentMode='slider';
     function setActive(btn,on){btn.setAttribute('aria-pressed',on?'true':'false')}
     function applySplit(p){p=Math.max(0,Math.min(100,p));layerAfter.style.clipPath=`inset(0 0 0 ${p}%)`;sliderHandle.style.left=p+'%'}
-    function showShield(on){ pauseShield.classList.toggle('visible', !!on); pauseShield.setAttribute('aria-hidden', on?'false':'true'); }
-    function updateBufferUI(current){
-      if(!Number.isFinite(duration)||duration<=0)return;
-      const fA=playerBefore?.getVideoLoadedFraction?.()||0, fB=playerAfter?.getVideoLoadedFraction?.()||0;
-      const frac=Math.max(0,Math.min(1,Math.min(fA,fB)));
-      const played=Math.max(0,Math.min(1,(current||0)/duration));
-      seek.style.setProperty('--buf',(frac*100)+'%'); seek.style.setProperty('--p',(played*100)+'%');
-      introProgBar.style.setProperty('--p',(frac*100)+'%'); introProgLabel.textContent=Math.round(frac*100)+'%';
-    }
-    function updateSeekUI(t){
-      if(!Number.isFinite(duration)||duration<=0)return;
-      const c=Math.min(duration,Math.max(0,t)); seek.max=duration.toFixed(2); seek.value=c.toFixed(2);
-      timeReadout.textContent=`${formatTime(c)} / ${formatTime(duration)} (−${formatTime(Math.max(0,duration-c))})`;
-      updateBufferUI(c);
-    }
     function setMode(mode){
       currentMode=mode;
       setActive(btnModeSlider,mode==='slider'); setActive(btnModeFade,mode==='fade');
@@ -268,10 +252,9 @@
     btnModeFade.addEventListener('click',()=>setMode('fade'));
     btnOnlyBefore.addEventListener('click',()=>setMode('only-before'));
     btnOnlyAfter.addEventListener('click',()=>setMode('only-after'));
-
     fadeRange.addEventListener('input',()=>{const v=fadeRange.valueAsNumber;fadePct.textContent=v+'%';if(currentMode==='fade')layerAfter.style.opacity=(v/100).toFixed(2)})
 
-    // スライダードラッグ（ドラッグ中はページスクロール抑止）
+    // スライダードラッグ
     let dragging=false;
     const onDown=(e)=>{dragging=true; e.preventDefault?.()};
     const onUp=()=>{dragging=false};
@@ -285,18 +268,33 @@
     sliderHandle.addEventListener('mousedown',onDown); window.addEventListener('mouseup',onUp); window.addEventListener('mousemove',onMove);
     sliderHandle.addEventListener('touchstart',onDown,{passive:false}); window.addEventListener('touchend',onUp); window.addEventListener('touchmove',onMove,{passive:false});
 
-    // 再生・一時停止（停止時はシールドを出さず、フレームをそのまま見せる）
-    function playBoth(){ try{playerBefore.playVideo()}catch{} try{playerAfter.playVideo()}catch{} isPlaying=true; playPause.textContent='⏸ 一時停止'; playPause.setAttribute('aria-pressed','true'); /* 停止比較のためシールドは出さない */ }
-    function pauseBoth(){ try{playerBefore.pauseVideo()}catch{} try{playerAfter.pauseVideo()}catch{} isPlaying=false; playPause.textContent='▶ 再生'; playPause.setAttribute('aria-pressed','false'); /* シールドを出さない：停止フレーム比較用 */ }
+    // バッファ表示/時間UI
+    let totalDuration=0;
+    function formatTime(sec){const s=Math.max(0,Math.floor(sec||0));const m=Math.floor(s/60),r=s%60;return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`}
+    function updateBufferUI(current){
+      if(!Number.isFinite(totalDuration)||totalDuration<=0)return;
+      const fA=playerBefore?.getVideoLoadedFraction?.()||0, fB=playerAfter?.getVideoLoadedFraction?.()||0;
+      const frac=Math.max(0,Math.min(1,Math.min(fA,fB)));
+      const played=Math.max(0,Math.min(1,(current||0)/totalDuration));
+      seek.style.setProperty('--buf',(frac*100)+'%'); seek.style.setProperty('--p',(played*100)+'%');
+      introProgBar.style.setProperty('--p',(frac*100)+'%'); introProgLabel.textContent=Math.round(frac*100)+'%';
+    }
+    function updateSeekUI(t){
+      if(!Number.isFinite(totalDuration)||totalDuration<=0)return;
+      const c=Math.min(totalDuration,Math.max(0,t)); seek.max=totalDuration.toFixed(2); seek.value=c.toFixed(2);
+      timeReadout.textContent=`${formatTime(c)} / ${formatTime(totalDuration)} (−${formatTime(Math.max(0,totalDuration-c))})`;
+      updateBufferUI(c);
+    }
+
+    // 再生/一時停止（ポーズ時は薄シールドで中央アイコンを隠す）★
+    function showPauseShield(on){ if(introRunning) return; pauseShield.classList.toggle('visible', !!on); }
+    function playBoth(){ try{playerBefore.playVideo()}catch{} try{playerAfter.playVideo()}catch{} isPlaying=true; playPause.textContent='⏸ 一時停止'; playPause.setAttribute('aria-pressed','true'); showPauseShield(false); }
+    function pauseBoth(){ try{playerBefore.pauseVideo()}catch{} try{playerAfter.pauseVideo()}catch{} isPlaying=false; playPause.textContent='▶ 再生'; playPause.setAttribute('aria-pressed','false'); showPauseShield(true); }
 
     playPause.addEventListener('click',()=>{ if(!isReadyA||!isReadyB||introRunning)return; isPlaying?pauseBoth():playBoth(); });
-    overlayPlay.addEventListener('click',()=>{ if(!introRunning) playBoth(); });
-
     el('rewind-5').addEventListener('click',()=>nudge(-5)); el('forward-5').addEventListener('click',()=>nudge(+5));
-    function nudge(d){if(!isReadyA||!isReadyB)return;const t=Math.max(0,Math.min(duration,playerBefore.getCurrentTime()+d));seekToBoth(t,true)}
+    function nudge(d){if(!isReadyA||!isReadyB)return;const t=Math.max(0,Math.min(totalDuration,playerBefore.getCurrentTime()+d));seekToBoth(t,true)}
     seek.addEventListener('input',()=>updateSeekUI(parseFloat(seek.value))); seek.addEventListener('change',()=>seekToBoth(parseFloat(seek.value),true));
-
-    // キーボード（左右：±1s、Shift+左右：±5s、Space：再生/一時停止、F：全画面）
     window.addEventListener('keydown',(e)=>{
       if(introRunning) return;
       if(e.key===' '){ e.preventDefault(); isPlaying?pauseBoth():playBoth(); }
@@ -305,26 +303,37 @@
       if(e.key.toLowerCase()==='f'){ e.preventDefault(); toggleFullscreen(); }
     });
 
-    // ==== フルスクリーン（UIごとフルスクリーン。全画面中もフェード/スライダー使用可）====
-    function inFullscreen(){ return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement); }
-    function requestFS(el){ (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen || el.mozRequestFullScreen)?.call(el); }
-    function exitFS(){ (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen || document.mozCancelFullScreen)?.call(document); }
-    function toggleFullscreen(){ inFullscreen()? exitFS() : requestFS(shell); }
+    // フルスクリーン + 疑似FSフォールバック★
+    function inFS(){ return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement); }
+    function canFS(){ return !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || document.documentElement.msRequestFullscreen); }
+    function reqFS(el){
+      const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen || el.mozRequestFullScreen;
+      if (fn) { fn.call(el); return true; }
+      return false;
+    }
+    function exitFS(){
+      const fn = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen || document.mozCancelFullScreen;
+      if (fn) { fn.call(document); return true; }
+      return false;
+    }
+    function enterPseudoFS(){ document.body.classList.add('pseudo-fs'); }
+    function exitPseudoFS(){ document.body.classList.remove('pseudo-fs'); }
+    function toggleFullscreen(){
+      if(inFS()){ exitFS(); return; }
+      // まずネイティブFSを試行、ダメなら疑似FS
+      const ok = reqFS(shell);
+      if(!ok){ enterPseudoFS(); }
+    }
     fsEnter.addEventListener('click', toggleFullscreen);
-    fsExit.addEventListener('click', exitFS);
-    function onFSChange(){ fsExit.classList.toggle('visible', inFullscreen()); }
+    fsExit.addEventListener('click', ()=>{ if(!exitFS()) exitPseudoFS(); });
+    function onFSChange(){
+      const active = inFS() || document.body.classList.contains('pseudo-fs');
+      fsExit.classList.toggle('visible', active);
+    }
     document.addEventListener('fullscreenchange', onFSChange);
     document.addEventListener('webkitfullscreenchange', onFSChange);
 
-    // ==== 適応制御 ====
-    function getCommonQuality(avail){ const pref=['hd1080','hd720','large','medium','small']; for (const q of pref){ if (avail.includes(q)) return q; } return null; }
-    function setLowerQualityIfNeeded(p){
-      try{
-        const avail = p.getAvailableQualityLevels?.() || [];
-        const target = getCommonQuality(avail);
-        if (target) { p.setPlaybackQuality?.(target); }
-      }catch{}
-    }
+    // 同期ヘルパ
     function bufferedEnough(p, frac=MIN_BUFFER_FRAC, sec=MIN_BUFFER_SEC){
       const dur=p.getDuration()||0, f=(p.getVideoLoadedFraction?p.getVideoLoadedFraction():0)||0;
       const have=Math.max(f*dur, p.getCurrentTime?p.getCurrentTime():0), need=Math.max(frac*dur, sec);
@@ -332,27 +341,23 @@
     }
     function seekToBoth(t, allow){ playerBefore.seekTo(t, allow); playerAfter.seekTo(t, allow); updateSeekUI(t); }
 
-    // ==== 同期（rAF二段階補正 + 低速フォールバック）====
+    // rAF同期（二段階補正 + 低速ホールド）
     function syncStep() {
       if (!isReadyA || !isReadyB) { scheduleNext(); return; }
 
       const stA = playerBefore.getPlayerState?.();
       const stB = playerAfter.getPlayerState?.();
 
-      // PLAYING 同士以外はUIのみ更新（停止比較でもここに入る）
+      // 再生中以外（＝一時停止を含む）はUIのみ
       if (stA !== YT.PlayerState.PLAYING || stB !== YT.PlayerState.PLAYING) {
         updateSeekUI(playerBefore.getCurrentTime());
         scheduleNext();
         return;
       }
 
-      // 低速時フォールバック：追従側（after）ホールド
       const leaderOK = bufferedEnough(playerBefore);
       const followerOK = bufferedEnough(playerAfter);
       const followerOKForResync = bufferedEnough(playerAfter, RESYNC_BUFFER_FRAC, RESYNC_BUFFER_SEC);
-
-      setLowerQualityIfNeeded(playerBefore);
-      setLowerQualityIfNeeded(playerAfter);
 
       if (leaderOK && !followerOK) {
         if (!followerHolding){ try{ playerAfter.pauseVideo(); }catch{} followerHolding = true; }
@@ -366,29 +371,19 @@
         lastFineAdjustAt = performance.now();
       }
 
-      // 通常の二段階補正
       const ta = playerBefore.getCurrentTime();
       const tb = playerAfter.getCurrentTime();
       const drift = tb - ta;
 
-      const bufOK = leaderOK && (followerOK || !followerHolding);
-      if (bufOK && !followerHolding) {
+      if (!followerHolding && leaderOK && followerOK) {
         const now = performance.now();
-        if (Math.abs(drift) > SYNC_HARD) {
-          playerAfter.seekTo(ta, /*allowSeekAhead=*/true);
-          lastFineAdjustAt = now;
-        } else if (Math.abs(drift) > SYNC_FINE) {
-          if (now - lastFineAdjustAt > FINE_COOLDOWN_MS) {
-            playerAfter.seekTo(ta, /*allowSeekAhead=*/false);
-            lastFineAdjustAt = now;
-          }
-        }
+        if (Math.abs(drift) > 0.50) { playerAfter.seekTo(ta, true); lastFineAdjustAt = now; }
+        else if (Math.abs(drift) > 0.08 && (now - lastFineAdjustAt > 500)) { playerAfter.seekTo(ta, false); lastFineAdjustAt = now; }
       }
 
       updateSeekUI(ta);
       scheduleNext();
     }
-
     function scheduleNext(){
       if (document.visibilityState === 'visible' && isPlaying) {
         rafId = requestAnimationFrame(syncStep);
@@ -400,7 +395,7 @@
     function stopTicking(){ if (rafId){ cancelAnimationFrame(rafId); rafId = null; } if (intervalId){ clearTimeout(intervalId); intervalId = null; } }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible'){ if (isPlaying){ stopTicking(); startTicking(); } } else { stopTicking(); } });
 
-    // ==== イントロ ====
+    // イントロ
     let introRAF=null;
     function startIntroAnimation(){
       let dir=1, fadeValue=40, splitValue=50;
@@ -426,40 +421,27 @@
         function step(ts){const p=Math.min(1,(ts-t0)/dur); applySplit(f+(to-f)*ease(p)); if(p<1) requestAnimationFrame(step)}
         requestAnimationFrame(step); layerAfter.style.opacity=1;
       }
-      introOverlay.setAttribute('inert',''); introOverlay.style.display='none'; playPause?.focus?.();
+      introOverlay.style.display='none'; playPause?.focus?.();
     }
 
-    // ==== バッファ監視 ====
     function startBufferWatch(){
       if(bufferWatchTimer)return;
-      autoStartEnabled=!!introAuto.checked; introAuto.addEventListener('change',()=>{autoStartEnabled=!!introAuto.checked});
-      introBtn.disabled=false;
+      el('intro-start-btn').disabled=false;
       bufferWatchTimer=setInterval(()=>{
         const tNow=playerBefore?.getCurrentTime?.()||0; updateBufferUI(tNow);
-        setLowerQualityIfNeeded(playerBefore);
-        setLowerQualityIfNeeded(playerAfter);
-        const ready=bufferedEnough(playerBefore)&&bufferedEnough(playerAfter);
-        if(ready){
-          introSub.textContent = autoplayBlocked
-            ? '準備完了 — 再生を押してください（自動再生が制限されています）'
-            : '準備完了 — 自動再生します';
-        }else{
-          introSub.textContent = autoplayBlocked
-            ? '同期準備中… 再生ボタンでバッファリングを開始します'
-            : '同期準備中… バッファリング中';
-        }
       },200);
     }
 
-    introBtn.addEventListener('click',()=>{if(!introBtn.disabled)beginPlaybackFromZero()});
+    // 再生開始
+    el('intro-start-btn').addEventListener('click',()=>{ if(!started) beginPlaybackFromZero(); });
     function beginPlaybackFromZero(){
-      if(started)return; started=true; autoplayBlocked=false;
+      started=true; autoplayBlocked=false;
       playerBefore.seekTo(0,true); playerAfter.seekTo(0,true);
       playBoth();
       stopIntroAnimation(); startBufferWatch(); startTicking();
     }
 
-    // ==== YouTube API ====
+    // YouTube API
     window.onYouTubeIframeAPIReady=function(){
       const commonVars = {
         autoplay: 1, controls: 0, rel: 0, modestbranding: 1,
@@ -469,12 +451,12 @@
       playerBefore=new YT.Player('yt-before',{
         videoId:VIDEO_BEFORE.id,
         playerVars:{...commonVars, playlist: VIDEO_BEFORE.id},
-        events:{onReady:(e)=>onReady('before',e), onStateChange:onStateChange, onPlaybackRateChange, onError}
+        events:{onReady:(e)=>onReady('before',e), onStateChange:onStateChange}
       });
       playerAfter=new YT.Player('yt-after',{
         videoId:VIDEO_AFTER.id,
         playerVars:{...commonVars, playlist: VIDEO_AFTER.id},
-        events:{onReady:(e)=>onReady('after',e), onStateChange:onStateChange, onPlaybackRateChange, onError}
+        events:{onReady:(e)=>onReady('after',e), onStateChange:onStateChange}
       });
     };
 
@@ -483,51 +465,48 @@
       if(which==='before')isReadyA=true;else isReadyB=true;
 
       if(isReadyA&&isReadyB){
-        const dA=playerBefore.getDuration(), dB=playerAfter.getDuration(); duration=Math.min(dA||0,dB||0); updateSeekUI(0);
+        const dA=playerBefore.getDuration(), dB=playerAfter.getDuration(); totalDuration=Math.min(dA||0,dB||0); updateSeekUI(0);
         setMode('slider'); startIntroAnimation();
-        try{playerBefore.playVideo()}catch{} try{playerAfter.playVideo()}catch{} isPlaying=true; playPause.textContent='⏸ 一時停止'; playPause.setAttribute('aria-pressed','true');
 
-        // 自動再生可否を軽くチェック（不可時はシールドで誘導）
+        // 自動再生可否（イントロ中のみ判定。イントロより優先してシールドは出さない）★
         setTimeout(checkAutoplay, AUTOPLAY_WATCH_MS_1);
         setTimeout(checkAutoplay, AUTOPLAY_WATCH_MS_2);
 
-        startBufferWatch(); startTicking();
+        startBufferWatch();
       }
     }
 
     function checkAutoplay(){
+      if(!introRunning) return; // イントロ中だけ案内
       const stA=playerBefore.getPlayerState?.(), stB=playerAfter.getPlayerState?.();
       if(stA!==YT.PlayerState.PLAYING && stB!==YT.PlayerState.PLAYING){
-        autoplayBlocked=true; introBtn.disabled=false; introSub.textContent='ブラウザが自動再生を制限 — 「再生開始」を押してください';
-        showShield(true); // このケースのみシールドでオーバーレイ抑止
+        autoplayBlocked=true;
+        introSub.textContent='ブラウザが自動再生を制限 — 「再生開始」を押してください';
+        el('intro-start-btn').disabled=false;
+      }else{
+        // 再生できたらイントロを外して本再生
+        beginPlaybackFromZero();
       }
     }
-
-    function onPlaybackRateChange(_ev){ /* 必要に応じてログ */ }
-    function onError(_ev){ /* 必要に応じてログ */ }
 
     function onStateChange(ev){
       if(!playerBefore||!playerAfter)return;
       const st=ev.data;
 
-      if (st===YT.PlayerState.PAUSED) {
-        // 停止比較：シールドは出さない（フレームを見せる）
-        // どちらかがPAUSEDになったら両方止める
+      if (st===YT.PlayerState.PAUSED) { // どちらかが停止→両方停止＋薄シールド
         try{playerBefore.pauseVideo()}catch{} try{playerAfter.pauseVideo()}catch{}
-        isPlaying=false; playPause.textContent='▶ 再生'; playPause.setAttribute('aria-pressed','false');
+        isPlaying=false; playPause.textContent='▶ 再生'; playPause.setAttribute('aria-pressed','false'); showPauseShield(true);
       }
       if (st===YT.PlayerState.PLAYING) {
         if (!introRunning && !isPlaying) { playBoth(); }
-        showShield(false);
+        showPauseShield(false);
       }
-      if (st===YT.PlayerState.ENDED) {
-        // エンド画面（おすすめ）に入らせないため即ループ復帰
-        seekToBoth(0,true); try{playerBefore.playVideo()}catch{} try{playerAfter.playVideo()}catch{}
-        isPlaying=true; playPause.textContent='⏸ 一時停止'; playPause.setAttribute('aria-pressed','true');
+      if (st===YT.PlayerState.ENDED) { // エンド画面に入らせない
+        seekToBoth(0,true); playBoth();
       }
     }
 
-    // ページ離脱
+    // 離脱
     window.addEventListener('beforeunload',()=>{ if(rafId) cancelAnimationFrame(rafId); if(intervalId) clearTimeout(intervalId); if(bufferWatchTimer) clearInterval(bufferWatchTimer); });
   </script>
 </body>
