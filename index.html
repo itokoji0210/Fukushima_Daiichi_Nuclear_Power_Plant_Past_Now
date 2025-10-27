@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <!-- CSPでYouTube系以外を極力ブロック -->
+  <meta http-equiv="Content-Security-Policy"
+        content="
+          default-src 'self';
+          script-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://s.ytimg.com 'unsafe-inline';
+          style-src  'self' 'unsafe-inline';
+          img-src    'self' data: blob: https://i.ytimg.com;
+          frame-src  https://www.youtube.com https://www.youtube-nocookie.com;
+          connect-src 'self' https://www.youtube.com https://*.googlevideo.com;
+          media-src  https://*.googlevideo.com;
+          font-src   'self' data:;
+          object-src 'none';
+          base-uri   'self';
+          form-action 'self';
+        ">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>福島第一 ３Ｄ動画 被災翌年/現在（同期比較）</title>
+  <meta name="description" content="福島第一原発の3DGS（2012/2025）を同期再生し、フェード/スライダー/単独表示で比較できるデモ。" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%235b9cff'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='56' fill='white' font-family='Arial, sans-serif'%3EF%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:radial-gradient(1200px 800px at 80% -10%,#1b2030 0%,var(--bg) 40%,var(--bg) 100%);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans JP,Helvetica,Arial}
+    .wrap{max-width:1500px;margin:24px auto;padding:0 16px 48px}
+    .header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .title{font-size:clamp(18px,2.4vw,28px);font-weight:700}
+    .note{color:var(--muted);font-size:12px}
+
+    /* 端末幅に合わせて最大化。極小端末での潰れを避けるため下限も確保 */
+    .video-shell{
+      position:relative;
+      width: clamp(320px, 96vw, 1400px);
+      margin:0 auto;
+      aspect-ratio:16/9;
+      background:#0b0d13;border:1px solid #20273a;border-radius:var(--radius);
+      overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+      isolation:isolate;user-select:none
+    }
+    .layer{position:absolute;inset:0}
+    .layer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
+    #video-shell{pointer-events:none} .controls,.slider-handle,.overlay-button{pointer-events:auto}
+
+    /* スライダーハンドル */
+    .slider-handle{position:absolute;top:0;bottom:0;width:2px;background:#ffffff66;left:50%;cursor:ew-resize;z-index:5}
+    .slider-dot{position:absolute;top:50%;transform:translate(-50%,-50%);left:50%;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(0,0,0,.35)}
+
+    /* イントロ */
+    #intro-overlay{display:grid;place-items:center;background:linear-gradient(180deg,#0b0f1a88,#0b0f1a88);pointer-events:auto;z-index:6}
+    .intro-mask{position:absolute;inset:0;background:radial-gradient(60% 60% at 50% 40%,#ffffff08,transparent 70%);mix-blend-mode:screen}
+    .intro-center{text-align:center;padding:24px 16px;backdrop-filter:blur(2px);display:grid;gap:12px;justify-items:center}
+    .intro-title{font-weight:800;letter-spacing:.5px;font-size:clamp(16px,3.2vw,28px);margin-bottom:8px}
+    .intro-sub{color:var(--muted);font-size:13px}
+    .intro-progress{width:min(520px,80vw)}
+    .intro-progress-bar{position:relative;height:10px;border-radius:999px;background:#1f2a44;overflow:hidden}
+    .intro-progress-bar::before{content:"";position:absolute;inset:0;width:var(--p,0%);background:linear-gradient(90deg,#ff6a6a,#e53935)}
+    #intro-progress-label{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+    .btn-primary{background:linear-gradient(180deg,#2a6cff,#164cff);color:#fff;border:1px solid #335fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn-primary[disabled]{opacity:.6;cursor:not-allowed}
+
+    /* 一時停止時/終了時にYouTubeのオーバーレイを隠すシールド */
+    #pause-shield{
+      position:absolute;inset:0;background:#0b0d13;display:none;align-items:center;justify-content:center;z-index:7;
+    }
+    #pause-shield.visible{display:flex}
+    .overlay-button{
+      background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);
+      border:1px solid #26324a;padding:12px 16px;border-radius:999px;font-weight:800;cursor:pointer
+    }
+
+    .panel{background:linear-gradient(180deg,#161b27,#121620);border:1px solid #20273a;border-radius:var(--radius);padding:14px;display:grid;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04)}
+    .row{display:grid;gap:8px;align-items:center}
+    .row.inline{grid-template-columns:auto 1fr auto;gap:10px}
+    .buttons{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);border:1px solid #26324a;padding:10px 12px;border-radius:12px;font-weight:600;cursor:pointer;transition:transform .02s ease,filter .15s ease,background .2s ease}
+    button:hover{filter:brightness(1.08)} button:active{transform:scale(.98)}
+    button[aria-pressed="true"]{outline:2px solid var(--accent)}
+    .seg-btn{border-radius:999px;padding:8px 14px}
+    .time{font-variant-numeric:tabular-nums}
+
+    /* YouTube風シーク */
+    #seek{height:28px;-webkit-appearance:none;background:transparent;border-radius:999px;padding:10px 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.25)), /* base */
+        linear-gradient(rgba(255,255,255,.60), rgba(255,255,255,.60)), /* buffered */
+        linear-gradient(#e53935,#e53935);                               /* played */
+      background-repeat:no-repeat;
+      background-size:100% 6px, var(--buf,0%) 6px, var(--p,0%) 6px;
+      background-position:left center,left center,left center;
+    }
+    #seek::-webkit-slider-runnable-track{height:6px;background:transparent;border-radius:999px}
+    #seek::-moz-range-track{height:6px;background:transparent;border-radius:999px}
+    #seek::-ms-track{height:6px;background:transparent;border-radius:999px;border-color:transparent;color:transparent}
+    #seek::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#e53935;border:0;box-shadow:0 0 0 6px rgba(229,57,53,.25);transition:transform .12s ease,box-shadow .12s ease}
+    #seek::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#e53935;border:0;box-shadow:0 0 0 6px rgba(229,57,53,.25);transition:transform .12s ease,box-shadow .12s ease}
+    #seek:hover::-webkit-slider-thumb,#seek:active::-webkit-slider-thumb{transform:scale(1.15);box-shadow:0 0 0 8px rgba(229,57,53,.2)}
+    #seek:hover::-moz-range-thumb,#seek:active::-moz-range-thumb{transform:scale(1.15);box-shadow:0 0 0 8px rgba(229,57,53,.2)}
+
+    /* 再生ボタンを中央に */
+    .transport-buttons{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}
+    .transport-buttons .primary{font-weight:800}
+
+    @media (max-width: 480px) {
+      .transport-buttons{ gap: 8px; }
+      .buttons .btn{ padding: 8px 10px; font-size: 14px; }
+      .title{ font-size: clamp(16px, 4.8vw, 22px); }
+      #seek{ height: 36px; }
+      .video-shell{ width: 100vw; border-radius: 0; }
+    }
+
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="title">福島第一 ３Ｄ動画 被災翌年/現在（同期比較）</div>
+    </div>
+
+    <div class="video-shell" id="video-shell" aria-label="比較ビュー">
+      <div class="layer" id="layer-before"><div id="yt-before"></div></div>
+      <div class="layer" id="layer-after"><div id="yt-after"></div></div>
+
+      <!-- スライダー -->
+      <div class="slider-handle" id="slider-handle" hidden><div class="slider-dot"></div></div>
+
+      <!-- 一時停止・終了時のシールド -->
+      <div id="pause-shield" aria-hidden="true">
+        <button id="overlay-play" class="overlay-button" aria-label="再生再開">▶ 再生</button>
+      </div>
+
+      <!-- イントロ -->
+      <div class="layer" id="intro-overlay" role="dialog" aria-modal="true">
+        <div class="intro-mask"></div>
+        <div class="intro-center">
+          <div class="intro-title">福島第一 被災翌年/現在 比較</div>
+          <div class="intro-sub" id="intro-sub">同期準備中… バッファリング完了後に自動再生</div>
+          <div class="intro-progress"><div class="intro-progress-bar" id="intro-progress-bar"><span id="intro-progress-label">0%</span></div></div>
+          <button id="intro-start-btn" class="btn-primary" disabled>再生開始</button>
+          <label class="intro-toggle"><input type="checkbox" id="intro-autostart" checked> 準備完了で自動再生</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel controls">
+      <div class="row">
+        <div class="buttons" id="mode-buttons" role="group" aria-label="表示モード">
+          <button id="btn-mode-slider"      class="btn seg-btn" aria-pressed="true">スライダー比較</button>
+          <button id="btn-mode-fade"        class="btn seg-btn" aria-pressed="false">フェード比較</button>
+          <button id="btn-mode-only-before" class="btn seg-btn" aria-pressed="false">被災翌年のみ</button>
+          <button id="btn-mode-only-after"  class="btn seg-btn" aria-pressed="false">現在のみ</button>
+        </div>
+      </div>
+
+      <div class="row inline" id="fade-controls" aria-live="polite" style="display:none">
+        <label for="fade-range">フェード量</label>
+        <input type="range" id="fade-range" min="0" max="100" value="50" step="1" />
+        <span id="fade-pct" class="time">50%</span>
+      </div>
+
+      <div class="row" id="transport">
+        <div class="transport-buttons">
+          <button id="rewind-5">⟲ -5秒</button>
+          <button id="play-pause" class="primary" aria-pressed="false">▶ 再生</button>
+          <button id="forward-5">+5秒 ⟳</button>
+          <span class="time" id="time-readout">00:00 / 00:00</span>
+        </div>
+        <input type="range" id="seek" min="0" max="0" value="0" step="0.01" aria-label="シークバー" />
+      </div>
+    </div>
+
+    <p class="note">
+      動画提供:
+      <a href="https://youtu.be/WOw9BryHb_4" target="_blank" rel="noreferrer noopener">被災翌年（2012-03-01撮影）</a> /
+      <a href="https://youtu.be/KKNWwr_9590" target="_blank" rel="noreferrer noopener">現在（2025-01-27撮影）</a>
+      （YouTube）
+    </p>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    // ==== Config（動画ID差し替え）====
+    const VIDEO_BEFORE = { id: 'WOw9BryHb_4', label: '被災翌年' };
+    const VIDEO_AFTER  = { id: 'KKNWwr_9590', label: '現在' };
+    // 同期・制御パラメータ
+    const SYNC_FINE = 0.08, SYNC_HARD = 0.50, FINE_COOLDOWN_MS = 500;
+    const AUTOPLAY_WATCH_MS_1 = 500, AUTOPLAY_WATCH_MS_2 = 1500;
+    const MIN_BUFFER_FRAC = 0.06, MIN_BUFFER_SEC = 3;
+
+    // ==== State ====
+    let playerBefore=null, playerAfter=null, duration=0;
+    let isReadyA=false, isReadyB=false, isPlaying=false;
+    let introRunning=true, autoplayBlocked=false, autoStartEnabled=true, started=false;
+    let bufferingStartAt=null;
+
+    // ==== Elements ====
+    const el=id=>document.getElementById(id);
+    const layerBefore=el('layer-before'), layerAfter=el('layer-after'), shell=el('video-shell');
+    const sliderHandle=el('slider-handle'), playPause=el('play-pause');
+    const seek=el('seek'), timeReadout=el('time-readout');
+    const fadeRange=el('fade-range'), fadePct=el('fade-pct');
+    const introOverlay=el('intro-overlay'), introBtn=el('intro-start-btn'), introSub=el('intro-sub');
+    const introProgBar=el('intro-progress-bar'), introProgLabel=el('intro-progress-label'), introAuto=el('intro-autostart');
+    const btnModeSlider=el('btn-mode-slider'), btnModeFade=el('btn-mode-fade'), btnOnlyBefore=el('btn-mode-only-before'), btnOnlyAfter=el('btn-mode-only-after');
+    const pauseShield=el('pause-shield'), overlayPlay=el('overlay-play');
+
+    // ==== Helpers ====
+    let currentMode='slider'; // slider | fade | only-before | only-after
+    function formatTime(sec){const s=Math.max(0,Math.floor(sec||0));const m=Math.floor(s/60),r=s%60;return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`}
+    function setActive(btn,on){btn.setAttribute('aria-pressed',on?'true':'false')}
+    function applySplit(p){p=Math.max(0,Math.min(100,p));layerAfter.style.clipPath=`inset(0 0 0 ${p}%)`;sliderHandle.style.left=p+'%'}
+    function updateBufferUI(current){
+      if(!Number.isFinite(duration)||duration<=0)return;
+      const fA=playerBefore?.getVideoLoadedFraction?.()||0, fB=playerAfter?.getVideoLoadedFraction?.()||0;
+      const frac=Math.max(0,Math.min(1,Math.min(fA,fB)));
+      const played=Math.max(0,Math.min(1,(current||0)/duration));
+      seek.style.setProperty('--buf',(frac*100)+'%'); seek.style.setProperty('--p',(played*100)+'%');
+      introProgBar.style.setProperty('--p',(frac*100)+'%'); introProgLabel.textContent=Math.round(frac*100)+'%';
+    }
+    function updateSeekUI(t){
+      if(!Number.isFinite(duration)||duration<=0)return;
+      const c=Math.min(duration,Math.max(0,t)); seek.max=duration.toFixed(2); seek.value=c.toFixed(2);
+      timeReadout.textContent=`${formatTime(c)} / ${formatTime(duration)} (−${formatTime(Math.max(0,duration-c))})`;
+      updateBufferUI(c);
+    }
+
+    function setMode(mode){
+      currentMode=mode;
+      setActive(btnModeSlider,mode==='slider'); setActive(btnModeFade,mode==='fade');
+      setActive(btnOnlyBefore,mode==='only-before'); setActive(btnOnlyAfter,mode==='only-after');
+      const fadeRow=document.getElementById('fade-controls'); if(fadeRow) fadeRow.style.display=(mode==='fade')?'':'none';
+      layerBefore.style.display=''; layerAfter.style.display='';
+      if(mode==='fade'){
+        layerAfter.style.clipPath=''; layerAfter.style.width='100%';
+        layerAfter.style.opacity=(fadeRange.valueAsNumber/100).toFixed(2);
+        sliderHandle.hidden=true; fadeRange.disabled=false;
+      }else if(mode==='slider'){
+        fadeRange.disabled=true; sliderHandle.hidden=false; layerAfter.style.opacity=1; applySplit(parseFloat(sliderHandle.style.left)||50);
+      }else if(mode==='only-before'){
+        sliderHandle.hidden=true; fadeRange.disabled=true; layerAfter.style.display='none';
+      }else if(mode==='only-after'){
+        sliderHandle.hidden=true; fadeRange.disabled=true; layerAfter.style.display=''; layerAfter.style.opacity=1; layerAfter.style.clipPath='inset(0 0 0 0)';
+      }
+    }
+    btnModeSlider.addEventListener('click',()=>setMode('slider'));
+    btnModeFade.addEventListener('click',()=>setMode('fade'));
+    btnOnlyBefore.addEventListener('click',()=>setMode('only-before'));
+    btnOnlyAfter.addEventListener('click',()=>setMode('only-after'));
+
+    fadeRange.addEventListener('input',()=>{const v=fadeRange.valueAsNumber;fadePct.textContent=v+'%';if(currentMode==='fade')layerAfter.style.opacity=(v/100).toFixed(2)})
+
+    // Slider drag（ドラッグ中はスクロールを抑止）
+    let dragging=false;
+    const onDown=(e)=>{dragging=true; e.preventDefault?.()};
+    const onUp=()=>{dragging=false};
+    const onMove=e=>{
+      if(!dragging||currentMode!=='slider')return;
+      e.preventDefault?.();
+      const pt = e.touches?e.touches[0]:e;
+      const rect=shell.getBoundingClientRect(), x=pt.clientX-rect.left;
+      applySplit(Math.max(0,Math.min(100,(x/rect.width)*100)));
+    };
+    sliderHandle.addEventListener('mousedown',onDown); window.addEventListener('mouseup',onUp); window.addEventListener('mousemove',onMove);
+    sliderHandle.addEventListener('touchstart',onDown,{passive:false}); window.addEventListener('touchend',onUp); window.addEventListener('touchmove',onMove,{passive:false});
+
+    // Transport
+    function showShield(on){ pauseShield.classList.toggle('visible', !!on); pauseShield.setAttribute('aria-hidden', on?'false':'true'); }
+    function playBoth(){ try{playerBefore.playVideo()}catch{} try{playerAfter.playVideo()}catch{} isPlaying=true; playPause.textContent='⏸ 一時停止'; playPause.setAttribute('aria-pressed','true'); showShield(false);}
+    function pauseBoth(){ try{playerBefore.pauseVideo()}catch{} try{playerAfter.pauseVideo()}catch{} isPlaying=false; playPause.textContent='▶ 再生'; playPause.setAttribute('aria-pressed','false'); showShield(true);}
+
+    playPause.addEventListener('click',()=>{ if(!isReadyA||!isReadyB||introRunning)return; isPlaying?pauseBoth():playBoth(); });
+    overlayPlay.addEventListener('click',()=>{ if(!introRunning) playBoth(); });
+
+    el('rewind-5').addEventListener('click',()=>nudge(-5)); el('forward-5').addEventListener('click',()=>nudge(+5));
+    function nudge(d){if(!isReadyA||!isReadyB)return;const t=Math.max(0,Math.min(duration,playerBefore.getCurrentTime()+d));seekToBoth(t,true)}
+    seek.addEventListener('input',()=>updateSeekUI(parseFloat(seek.value))); seek.addEventListener('change',()=>seekToBoth(parseFloat(seek.value),true));
+
+    // キーボード（左右：±1s、Shift+左右：±5s、Space：再生/一時停止）
+    window.addEventListener('keydown',(e)=>{
+      if(introRunning) return;
+      if(e.key===' '){ e.preventDefault(); isPlaying?pauseBoth():playBoth(); }
+      if(e.key==='ArrowLeft'){ e.preventDefault(); nudge(e.shiftKey?-5:-1); }
+      if(e.key==='ArrowRight'){ e.preventDefault(); nudge(e.shiftKey?+5:+1); }
+    });
+
+    // ==== 同期（rAF二段階補正）====
+    let rafId = null, intervalId = null, lastFineAdjustAt = 0;
+
+    function bufferedEnough(p){
+      const dur=p.getDuration()||0, frac=(p.getVideoLoadedFraction?p.getVideoLoadedFraction():0)||0;
+      const have=Math.max(frac*dur, p.getCurrentTime?p.getCurrentTime():0), need=Math.max(MIN_BUFFER_FRAC*dur, MIN_BUFFER_SEC);
+      return have>=need;
+    }
+
+    function seekToBoth(t, allow){ playerBefore.seekTo(t, allow); playerAfter.seekTo(t, allow); updateSeekUI(t); }
+
+    function syncStep() {
+      if (!isReadyA || !isReadyB) { scheduleNext(); return; }
+
+      const stA = playerBefore.getPlayerState?.();
+      const stB = playerAfter.getPlayerState?.();
+
+      // PLAYING同士以外は補正停止（UIだけ更新）
+      if (stA !== YT.PlayerState.PLAYING || stB !== YT.PlayerState.PLAYING) {
+        updateSeekUI(playerBefore.getCurrentTime());
+        scheduleNext();
+        return;
+      }
+
+      const ta = playerBefore.getCurrentTime();
+      const tb = playerAfter.getCurrentTime();
+      const drift = tb - ta;
+
+      const bufOK = bufferedEnough(playerBefore) && bufferedEnough(playerAfter);
+
+      if (bufOK) {
+        const now = performance.now();
+        if (Math.abs(drift) > SYNC_HARD) {
+          // 大補正：一発同期（ネットワークリクエスト許可）
+          playerAfter.seekTo(ta, /*allowSeekAhead=*/true);
+          lastFineAdjustAt = now;
+        } else if (Math.abs(drift) > SYNC_FINE) {
+          // 微補正：レート制限＋バッファ維持（allowSeekAhead=false）
+          if (now - lastFineAdjustAt > FINE_COOLDOWN_MS) {
+            playerAfter.seekTo(ta, /*allowSeekAhead=*/false);
+            lastFineAdjustAt = now;
+          }
+        }
+      }
+      updateSeekUI(ta);
+      scheduleNext();
+    }
+
+    function scheduleNext(){
+      if (document.visibilityState === 'visible' && isPlaying) {
+        rafId = requestAnimationFrame(syncStep);
+      } else {
+        intervalId = setTimeout(syncStep, 120);
+      }
+    }
+    function startTicking(){ if (!rafId && !intervalId) scheduleNext(); }
+    function stopTicking(){ if (rafId){ cancelAnimationFrame(rafId); rafId = null; } if (intervalId){ clearTimeout(intervalId); intervalId = null; } }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible'){ if (isPlaying){ stopTicking(); startTicking(); } } else { stopTicking(); } });
+
+    // ==== イントロ ====
+    let introRAF=null;
+    function startIntroAnimation(){
+      let dir=1, fadeValue=40, splitValue=50;
+      const fadeMin=30,fadeMax=70,fadeSpeed=0.01, splitMin=25,splitMax=75,splitSpeed=0.015;
+      function frame(){
+        if(!introRunning)return;
+        if(currentMode==='fade'){
+          fadeValue+=dir*fadeSpeed*16; if(fadeValue>=fadeMax){fadeValue=fadeMax;dir=-1} if(fadeValue<=fadeMin){fadeValue=fadeMin;dir=1}
+          layerAfter.style.opacity=(fadeValue/100).toFixed(2); fadeRange.value=fadeValue.toFixed(0); fadePct.textContent=fadeRange.value+'%';
+        }else if(currentMode==='slider'){
+          splitValue+=dir*splitSpeed*16; if(splitValue>=splitMax){splitValue=splitMax;dir=-1} if(splitValue<=splitMin){splitValue=splitMin;dir=1}
+          layerAfter.style.opacity=1; applySplit(splitValue);
+        }
+        introRAF=requestAnimationFrame(frame);
+      }
+      introRAF=requestAnimationFrame(frame);
+    }
+    function stopIntroAnimation(){
+      introRunning=false; if(introRAF) cancelAnimationFrame(introRAF);
+      if(currentMode==='slider'){
+        const from=parseFloat((sliderHandle.style.left||'').replace('%','')); const f=isNaN(from)?50:from; const to=50, dur=400, t0=performance.now();
+        const ease=t=>1-Math.pow(1-t,3);
+        function step(ts){const p=Math.min(1,(ts-t0)/dur); applySplit(f+(to-f)*ease(p)); if(p<1) requestAnimationFrame(step)}
+        requestAnimationFrame(step); layerAfter.style.opacity=1;
+      }
+      introOverlay.setAttribute('inert',''); introOverlay.style.display='none'; playPause?.focus?.();
+    }
+
+    // ==== バッファ監視（自動再生判定 & 進捗UI）====
+    let bufferWatchTimer=null;
+    function startBufferWatch(){
+      if(bufferWatchTimer)return;
+      autoStartEnabled=!!introAuto.checked; introAuto.addEventListener('change',()=>{autoStartEnabled=!!introAuto.checked});
+      introBtn.disabled=false;
+      bufferWatchTimer=setInterval(()=>{
+        const tNow=playerBefore?.getCurrentTime?.()||0; updateBufferUI(tNow);
+        const ready=bufferedEnough(playerBefore)&&bufferedEnough(playerAfter);
+        if(ready){
+          introSub.textContent = autoplayBlocked
+            ? '準備完了 — 再生を押してください（自動再生が制限されています）'
+            : '準備完了 — 自動再生します';
+        }else{
+          introSub.textContent = autoplayBlocked
+            ? '同期準備中… 再生ボタンでバッファリングを開始します'
+            : '同期準備中… バッファリング中';
+        }
+      },180);
+    }
+
+    introBtn.addEventListener('click',()=>{if(!introBtn.disabled)beginPlaybackFromZero()});
+    function beginPlaybackFromZero(){
+      if(started)return; started=true; autoplayBlocked=false;
+      playerBefore.seekTo(0,true); playerAfter.seekTo(0,true);
+      playBoth();
+      stopIntroAnimation(); startTicking(); showShield(false);
+    }
+
+    // ==== YouTube API ====
+    window.onYouTubeIframeAPIReady=function(){
+      const commonVars = {
+        autoplay: 1, controls: 0, rel: 0, modestbranding: 1,
+        playsinline: 1, fs: 0, iv_load_policy: 3, loop: 1, disablekb: 1, cc_load_policy: 0,
+        origin: location.origin
+      };
+      playerBefore=new YT.Player('yt-before',{
+        videoId:VIDEO_BEFORE.id,
+        playerVars:{...commonVars, playlist: VIDEO_BEFORE.id},
+        events:{onReady:(e)=>onReady('before',e), onStateChange:onStateChange, onPlaybackRateChange, onError}
+      });
+      playerAfter=new YT.Player('yt-after',{
+        videoId:VIDEO_AFTER.id,
+        playerVars:{...commonVars, playlist: VIDEO_AFTER.id},
+        events:{onReady:(e)=>onReady('after',e), onStateChange:onStateChange, onPlaybackRateChange, onError}
+      });
+    };
+
+    function onReady(which,e){
+      try{e.target.mute()}catch{} try{e.target.setPlaybackQuality('hd1080')}catch{}
+      if(which==='before')isReadyA=true;else isReadyB=true;
+
+      if(isReadyA&&isReadyB){
+        const dA=playerBefore.getDuration(), dB=playerAfter.getDuration(); duration=Math.min(dA||0,dB||0); updateSeekUI(0);
+        setMode('slider'); startIntroAnimation();
+        playBoth();
+        bufferingStartAt=performance.now();
+
+        // 自動再生可否を段階的に監視
+        setTimeout(checkAutoplay, AUTOPLAY_WATCH_MS_1);
+        setTimeout(checkAutoplay, AUTOPLAY_WATCH_MS_2);
+
+        startBufferWatch();
+      }
+    }
+
+    function checkAutoplay(){
+      const stA=playerBefore.getPlayerState?.(), stB=playerAfter.getPlayerState?.();
+      if(stA!==YT.PlayerState.PLAYING && stB!==YT.PlayerState.PLAYING){
+        autoplayBlocked=true; introBtn.disabled=false; introSub.textContent='ブラウザが自動再生を制限 — 「再生開始」を押してください';
+        showShield(true); // 画面には自前UIのみ
+      }
+    }
+
+    function onPlaybackRateChange(_ev){ /* 必要ならロギング */ }
+    function onError(ev){ /* 必要ならロギング: console.warn('YT error', ev.data); */ }
+
+    function onStateChange(ev){
+      if(!playerBefore||!playerAfter)return;
+      const st=ev.data;
+
+      if (st===YT.PlayerState.PAUSED) {
+        // どちらかがPAUSEDなら両方止めてシールド表示
+        if (!introRunning) { pauseBoth(); }
+      }
+      if (st===YT.PlayerState.PLAYING) {
+        if (!introRunning && !isPlaying) { playBoth(); }
+        showShield(false);
+      }
+      if (st===YT.PlayerState.ENDED) {
+        // ループ再生でエンド画面を極力見せない
+        seekToBoth(0,true); playBoth();
+      }
+    }
+
+    // ページ離脱
+    window.addEventListener('beforeunload',()=>{ stopTicking(); if(bufferWatchTimer) clearInterval(bufferWatchTimer); });
+  </script>
+</body>
+</html>
