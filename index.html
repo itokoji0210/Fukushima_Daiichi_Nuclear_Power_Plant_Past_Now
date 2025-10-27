@@ -16,26 +16,23 @@
         base-uri   'self';
         form-action 'self';
       ">
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>福島第一 ３Ｄ比較（2012 / 2025）同期最優先版</title>
-<meta name="description" content="厳密同期を最優先。起動は低画質→キャッシュ安定で段階的に画質アップ。全画面でもフェード/スライダー操作可。スマホ縦全画面は実高さにフィット。">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>福島第一 ３Ｄ同期比較（2012/2025）— 同期最優先・全画面対応</title>
+<meta name="description" content="起動は低画質→キャッシュ蓄積で自動画質アップ。停止フレームも厳密一致。全画面でもフェード操作可。縦画面スマホは100dvhでフィット。" />
 <style>
-  :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; --vh:1vh; }
+  :root { --bg:#0f1115; --panel:#151822; --muted:#9aa3b2; --fg:#e7ebf3; --accent:#5b9cff; --radius:16px; }
   *{box-sizing:border-box} html,body{height:100%}
   body{margin:0;background:#0f1115;color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans JP,Helvetica,Arial}
+
   .wrap{max-width:1500px;margin:16px auto;padding:0 12px 40px}
   .header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:10px}
   .title{font-size:clamp(18px,2.8vw,28px);font-weight:800;letter-spacing:.2px}
   .note{color:var(--muted);font-size:12px}
 
-  /* 疑似フルスクリーン（iOS/FS非対応時） */
+  /* 疑似フルスクリーン（iOS/FS失敗時） */
   body.pfs{overflow:hidden;}
   body.pfs .wrap{max-width:none;padding:0}
-  body.pfs .video-shell{
-    position:fixed;inset:0;z-index:9999;border-radius:0;
-    width:100vw;height:calc(var(--vh,1vh) * 100); /* 実画面高さにフィット */
-    aspect-ratio:auto;
-  }
+  body.pfs .video-shell{position:fixed;inset:0;z-index:9999;border-radius:0;width:100vw;height:100dvh /* 縦画面フィット */;aspect-ratio:auto}
   body.pfs .panel{position:fixed;left:0;right:0;bottom:0;margin:0;border-radius:0}
 
   .video-shell{
@@ -43,17 +40,22 @@
     width: clamp(320px, 96vw, 1400px);
     margin:0 auto;
     aspect-ratio:16/9;
-    background:#0b0d13;border:1px solid #20273a;border-radius:16px;
+    background:#0b0d13;border:1px solid #20273a;border-radius:var(--radius);
     overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
     isolation:isolate;user-select:none
   }
   .layer{position:absolute;inset:0}
   .layer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
-  #video-shell{pointer-events:none} .controls,.slider-handle,.fs-btn,.fs-exit,.fs-toolbar{pointer-events:auto}
+  #video-shell{pointer-events:none}
+  .controls,.slider-handle,.fs-btn,.fs-exit,.fs-toolbar{pointer-events:auto}
 
   /* スライダー */
   .slider-handle{position:absolute;top:0;bottom:0;width:2px;background:#ffffff66;left:50%;cursor:ew-resize;z-index:6}
   .slider-dot{position:absolute;top:50%;transform:translate(-50%,-50%);left:50%;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(0,0,0,.35)}
+
+  /* 停止時に中央再生アイコン等を隠す（フレームは見える）*/
+  #pause-mask{position:absolute;inset:0;background:rgba(0,0,0,0.001);display:none;z-index:5}
+  #pause-mask.on{display:block}
 
   /* イントロ */
   #intro{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#0b0f1a88,#0b0f1a88);z-index:7}
@@ -66,34 +68,26 @@
   .btn-primary{background:linear-gradient(180deg,#2a6cff,#164cff);color:#fff;border:1px solid #335fff;padding:10px 14px;border-radius:12px;font-weight:800;cursor:pointer}
   .btn-primary[disabled]{opacity:.6;cursor:not-allowed}
 
-  /* 停止時マスク：フレームは見えるがYouTube中央アイコンを隠す */
-  #pause-mask{position:absolute;inset:0;background:rgba(0,0,0,0.001);display:none;z-index:5}
-  #pause-mask.on{display:block}
-
-  /* 全画面ボタン */
-  .fs-btn{position:absolute;top:10px;right:10px;z-index:9;background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);border:1px solid #26324a;padding:10px 14px;border-radius:12px;font-weight:800;cursor:pointer}
-  .fs-exit{position:absolute;top:10px;left:10px;z-index:9;display:none;background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);border:1px solid #26324a;padding:10px 14px;border-radius:12px;font-weight:800;cursor:pointer}
+  /* 全画面ボタン（左上「戻る」は最前面に）*/
+  .fs-btn{position:absolute;top:10px;right:10px;z-index:9;background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);border:1px solid #26324a;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+  .fs-exit{position:absolute;top:10px;left:10px;z-index:10;display:none;background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);border:1px solid #26324a;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
   .fs-exit.on{display:block}
 
-  /* 全画面用ツールバー（フェード・モード切替をFS中も操作可） */
+  /* FS 専用ツールバー（フェードを全画面でも操作可能に） */
   .fs-toolbar{
-    position:absolute;left:50%;transform:translateX(-50%);
-    bottom:12px;z-index:9;display:none;
-    background:rgba(18,22,32,.85);border:1px solid #20273a;border-radius:12px;
-    padding:8px 10px;backdrop-filter:blur(4px);
-    display:flex;gap:10px;align-items:center;
+    position:absolute;left:0;right:0;bottom:8px;z-index:9;
+    display:none;gap:10px;align-items:center;justify-content:center;
+    padding:8px 10px;
+    background:rgba(0,0,0,.25);backdrop-filter:blur(4px)
   }
   .fs-toolbar.on{display:flex}
-  .fs-toolbar label{font-size:12px;color:#d6dbe6}
-  .fs-toolbar input[type=range]{width:min(50vw,340px)}
-  .fs-toolbar .seg{border-radius:999px;padding:8px 12px;background:linear-gradient(180deg,#1a2233,#111725);border:1px solid #26324a;color:#e7ebf3;font-weight:700;cursor:pointer}
+  .fs-toolbar input[type="range"]{ width:min(520px,80vw); }
 
-  .panel{background:linear-gradient(180deg,#161b27,#121620);border:1px solid #20273a;border-radius:16px;padding:12px;display:grid;gap:10px;box-shadow:0 8px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);margin-top:10px}
+  .panel{background:linear-gradient(180deg,#161b27,#121620);border:1px solid #20273a;border-radius:var(--radius);padding:12px;display:grid;gap:10px;box-shadow:0 8px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);margin-top:10px}
   .row{display:grid;gap:8px;align-items:center}
   .row.inline{grid-template-columns:auto 1fr auto;gap:10px}
   .buttons{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  button{background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);border:1px solid #26324a;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer;transition:transform .02s ease,filter .15s ease,background .2s ease}
-  button:hover{filter:brightness(1.08)} button:active{transform:scale(.98)}
+  button{background:linear-gradient(180deg,#1a2233,#111725);color:var(--fg);border:1px solid #26324a;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
   button[aria-pressed="true"]{outline:2px solid var(--accent)}
   .seg-btn{border-radius:999px;padding:8px 14px}
   .time{font-variant-numeric:tabular-nums}
@@ -125,7 +119,7 @@
 <body>
   <div class="wrap">
     <div class="header">
-      <div class="title">福島第一 ３Ｄ比較（2012 / 2025）同期最優先版</div>
+      <div class="title">福島第一 ３Ｄ同期比較（2012 / 2025）</div>
     </div>
 
     <div class="video-shell" id="video-shell" aria-label="比較ビュー">
@@ -133,29 +127,27 @@
       <button id="fs-enter" class="fs-btn" aria-label="全画面表示">⤢ 全画面</button>
       <button id="fs-exit" class="fs-exit" aria-label="全画面を終了">⤡ 戻る</button>
 
-      <!-- 全画面ツールバー（FS中のみ表示） -->
-      <div id="fs-toolbar" class="fs-toolbar" aria-hidden="true">
-        <button id="fs-mode-slider" class="seg">スライダー</button>
-        <button id="fs-mode-fade" class="seg">フェード</button>
-        <label for="fs-fade-range">フェード</label>
-        <input type="range" id="fs-fade-range" min="0" max="100" value="50" step="1" />
-        <button id="fs-play" class="seg">⏯</button>
-      </div>
-
       <div class="layer" id="layer-before"><div id="yt-before"></div></div>
       <div class="layer" id="layer-after"><div id="yt-after"></div></div>
 
       <!-- スライダー -->
       <div class="slider-handle" id="slider-handle" hidden><div class="slider-dot"></div></div>
 
-      <!-- 停止時：中央アイコンを隠す -->
+      <!-- 停止時：中央アイコンなどを隠す -->
       <div id="pause-mask" aria-hidden="true"></div>
+
+      <!-- FS 専用フェードツールバー（フェード比較時のみ表示） -->
+      <div class="fs-toolbar" id="fs-toolbar" aria-hidden="true">
+        <label for="fade-range-fs">フェード</label>
+        <input type="range" id="fade-range-fs" min="0" max="100" value="50" step="1" />
+        <span id="fade-pct-fs" class="time">50%</span>
+      </div>
 
       <!-- イントロ -->
       <div id="intro" role="dialog" aria-modal="true">
         <div class="intro-box">
-          <div class="intro-title">同期準備中…</div>
-          <div class="intro-sub" id="intro-sub">バッファを確保しています（起動は低画質）</div>
+          <div class="intro-title">同期準備中…（起動は低画質）</div>
+          <div class="intro-sub" id="intro-sub">バッファを確保しています</div>
           <div class="bar" id="intro-bar" style="--p:0%"></div>
           <div class="intro-row">
             <button id="intro-start" class="btn-primary" disabled>再生開始</button>
@@ -201,30 +193,30 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-  // ====== 動画ID ======
-  const VIDEO_BEFORE = { id:'WOw9BryHb_4', label:'2012' };   // leader
-  const VIDEO_AFTER  = { id:'KKNWwr_9590',  label:'2025' };   // follower
+  // ====== 設定：同期最優先 ======
+  const VIDEO_A = { id:'WOw9BryHb_4', label:'2012' }; // leader
+  const VIDEO_B = { id:'KKNWwr_9590',  label:'2025' }; // follower
 
-  // ====== 同期・品質パラメータ（同期最優先） ======
-  const FINE=0.08, HARD=0.50, COOLDOWN=500;      // 微補正/大補正/連続補正間隔(ms)
+  // しきい値（厳しめ）
+  const FINE=0.08, HARD=0.50, COOLDOWN=500;
   const RATE_NORM=1, RATE_FAST=1.25, RATE_SLOW=0.75;
-  const RATE_DEADZONE=0.10, RATE_MAX_HOLD_MS=4000;
+  const RATE_DEADZONE=0.10, RATE_MAX_HOLD_MS=3500;
 
-  const MIN_FRAC=0.14, MIN_SEC=6;        // 起動・再開の最低バッファ（少し上げて安定重視）
-  const RESYNC_FRAC=0.22, RESYNC_SEC=9;  // 再開・再同期用
+  // バッファ基準
+  const MIN_FRAC=0.12, MIN_SEC=5;         // 起動閾値（最低）
+  const RESYNC_FRAC=0.20, RESYNC_SEC=8;   // 再開・再同期
 
-  const QUALITY_ORDER = ['small','medium','large','hd720','hd1080']; // 低→高
-
-  const UPGRADE_FRAC = 0.60;      // 双方読み込み率が60%以上
-  const UPGRADE_STABLE_MS = 9000; // 9秒間 大補正/停止が発生していない＆ズレ小
+  // 画質（低→高） 起動は small。十分安定したら 1段ずつ上げる
+  const QUALITY_ORDER = ['small','medium','large','hd720','hd1080'];
+  const UPGRADE_FRAC = 0.60;              // 双方読み込み率
+  const UPGRADE_STABLE_MS = 9000;         // この時間大きな補正なし
 
   // ====== 状態 ======
   let pA=null, pB=null, readyA=false, readyB=false, playing=false;
   let introOn=true, autoStart=true, started=false;
-  let raf=null, total=0, lastFine=0, lastHardOrPause=0, stableStart=0;
-  let rateMode='norm', rateSince=0;
-
-  const qIndex = { A:0, B:0 }; // 画質段階（small=0で開始）
+  let raf=null, total=0, lastFine=0;
+  let rateMode='norm', rateSince=0, lastHardOrPause=0, stableStart=0;
+  const qIndex = { A:0, B:0 }; // small
 
   // ====== 要素 ======
   const $ = id => document.getElementById(id);
@@ -232,53 +224,52 @@
   const slider=$('slider-handle'), pauseMask=$('pause-mask');
   const playBtn=$('play-pause'), seek=$('seek'), timeReadout=$('time-readout');
   const fadeRange=$('fade-range'), fadePct=$('fade-pct'), fadeRow=$('fade-controls');
+  const fadeRangeFS=$('fade-range-fs'), fadePctFS=$('fade-pct-fs'), fsToolbar=$('fs-toolbar');
   const btnSlider=$('btn-mode-slider'), btnFade=$('btn-mode-fade'), btnA=$('btn-mode-only-before'), btnB=$('btn-mode-only-after');
   const intro=$('intro'), introStart=$('intro-start'), introSub=$('intro-sub'), introBar=$('intro-bar');
   const fsEnter=$('fs-enter'), fsExit=$('fs-exit');
-  const fsToolbar=$('fs-toolbar'), fsFade=$('fs-fade-range'), fsModeSlider=$('fs-mode-slider'), fsModeFade=$('fs-mode-fade'), fsPlay=$('fs-play');
+  const isIOS = /iP(hone|ad|od)/i.test(navigator.userAgent);
 
-  // ====== ビューポート高補正（モバイル縦） ======
-  function setVH(){
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-  }
-  setVH(); window.addEventListener('resize', setVH); window.addEventListener('orientationchange', setVH);
-
-  // ====== 表示モード（通常/FS共通） ======
+  // ====== UI：表示モード ======
   let mode='slider';
-  function setActive(el, on){ el.setAttribute('aria-pressed', on?'true':'false'); }
+  function setActive(el,on){ el.setAttribute('aria-pressed', on?'true':'false'); }
   function applySplit(p){ p=Math.max(0,Math.min(100,p)); layerB.style.clipPath=`inset(0 0 0 ${p}%)`; slider.style.left=p+'%'; }
+  function syncFadeValue(v){
+    fadePct.textContent=v+'%';
+    fadePctFS.textContent=v+'%';
+    if(mode==='fade'){ layerB.style.opacity=(v/100).toFixed(2); }
+  }
   function setMode(m){
     mode=m;
     setActive(btnSlider,m==='slider'); setActive(btnFade,m==='fade'); setActive(btnA,m==='only-a'); setActive(btnB,m==='only-b');
     layerA.style.display=''; layerB.style.display='';
     if(m==='fade'){
       layerB.style.clipPath=''; layerB.style.width='100%';
-      const v = (fadeRange.valueAsNumber||50)/100;
-      layerB.style.opacity=v.toFixed(2);
-      slider.hidden=true; fadeRow.style.display='';
-      // FSツールバーの値と同期
-      fsFade.value = String(Math.round(v*100));
+      syncFadeValue(fadeRange.valueAsNumber);
+      slider.hidden=true; fadeRow.style.display=''; fsToolbar.classList.add('on');
     }else if(m==='slider'){
-      fadeRow.style.display='none'; slider.hidden=false; layerB.style.opacity=1; applySplit(parseFloat(slider.style.left)||50);
+      fadeRow.style.display='none'; fsToolbar.classList.remove('on');
+      slider.hidden=false; layerB.style.opacity=1; applySplit(parseFloat(slider.style.left)||50);
     }else if(m==='only-a'){
-      fadeRow.style.display='none'; slider.hidden=true; layerB.style.display='none';
+      slider.hidden=true; fadeRow.style.display='none'; fsToolbar.classList.remove('on'); layerB.style.display='none';
     }else if(m==='only-b'){
-      fadeRow.style.display='none'; slider.hidden=true; layerB.style.display=''; layerB.style.opacity=1; layerB.style.clipPath='inset(0 0 0 0)';
+      slider.hidden=true; fadeRow.style.display='none'; fsToolbar.classList.remove('on'); layerB.style.display=''; layerB.style.opacity=1; layerB.style.clipPath='inset(0 0 0 0)';
     }
-    // FSツールバーの見た目を更新
-    fsToolbar.classList.toggle('on', inAnyFS());
   }
   btnSlider.onclick=()=>setMode('slider');
   btnFade.onclick=()=>setMode('fade');
   btnA.onclick=()=>setMode('only-a');
   btnB.onclick=()=>setMode('only-b');
-  fadeRange.oninput=()=>{ const v=fadeRange.valueAsNumber; fadePct.textContent=v+'%'; if(mode==='fade'){ layerB.style.opacity=(v/100).toFixed(2); fsFade.value = String(v); } };
 
-  // スライダー（ドラッグ）
+  // フェード値の双方向同期（通常UI ↔ FSツールバー）
+  function onFadeInput(v){ fadeRange.value = v; fadeRangeFS.value = v; syncFadeValue(Number(v)); }
+  fadeRange.oninput  = e => onFadeInput(e.target.value);
+  fadeRangeFS.oninput= e => onFadeInput(e.target.value);
+
+  // スライダードラッグ
   let dragging=false;
-  const down=e=>{dragging=true; e.preventDefault?.();};
-  const up=()=>{dragging=false;};
+  const down=e=>{ dragging=true; e.preventDefault?.(); };
+  const up=()=>{ dragging=false; };
   const move=e=>{
     if(!dragging||mode!=='slider') return;
     e.preventDefault?.();
@@ -288,12 +279,6 @@
   };
   slider.addEventListener('mousedown',down); window.addEventListener('mouseup',up); window.addEventListener('mousemove',move);
   slider.addEventListener('touchstart',down,{passive:false}); window.addEventListener('touchend',up); window.addEventListener('touchmove',move,{passive:false});
-
-  // FSツールバーの操作
-  fsModeSlider.onclick=()=>setMode('slider');
-  fsModeFade.onclick=()=>setMode('fade');
-  fsFade.oninput=()=>{ fadeRange.value = fsFade.value; fadePct.textContent = fsFade.value + '%'; if(mode==='fade') layerB.style.opacity=(fsFade.value/100).toFixed(2); };
-  fsPlay.onclick=()=>{ if(!(readyA&&readyB) || introOn) return; playing?pauseBoth():playBoth(); };
 
   // 時間・バッファUI
   const fmt=s=>{ const t=Math.max(0,Math.floor(s||0)); const m=(t/60)|0, r=t%60; return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`; };
@@ -312,7 +297,7 @@
     updateBar(c);
   }
 
-  // 再生/停止（停止時は位置合わせ＋中央アイコン隠し）
+  // 再生/停止（停止で位置厳密一致＋中央アイコン隠し）
   function showPauseMask(on){ pauseMask.classList.toggle('on', !!on); }
   function playBoth(){ try{pA.playVideo()}catch{} try{pB.playVideo()}catch{} playing=true; playBtn.textContent='⏸ 一時停止'; playBtn.setAttribute('aria-pressed','true'); showPauseMask(false); startLoop(); }
   function pauseBoth(){ try{pA.pauseVideo()}catch{} try{pB.pauseVideo()}catch{} playing=false; playBtn.textContent='▶ 再生'; playBtn.setAttribute('aria-pressed','false'); showPauseMask(true); stopLoop(); }
@@ -328,10 +313,9 @@
   seek.addEventListener('input',()=>updateSeek(parseFloat(seek.value)));
   seek.addEventListener('change',()=>seekBoth(parseFloat(seek.value),true));
 
-  // 一時停止で必ず位置一致（リーダーの時刻に合わせる）
-  function forceSyncToLeaderOnPause(){
-    const t=pA.getCurrentTime?.()||0;
-    pB.seekTo(t,false); // 微補正（バッファ温存）
+  function forceSyncOnPause(){
+    const t=pA.getCurrentTime?.()||0; // leader の時間
+    pB.seekTo(t,false); // 微補正
     updateSeek(t);
     lastHardOrPause = performance.now();
   }
@@ -346,67 +330,211 @@
   });
 
   // ====== フルスクリーン（iOSは常に疑似FS。他はネイティブ→失敗時に疑似FS） ======
-  const isIOS = /iP(hone|ad|od)/i.test(navigator.userAgent);
   function inNativeFS(){ return !!(document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement); }
-  function inPseudoFS(){ return document.body.classList.contains('pfs'); }
-  function inAnyFS(){ return inNativeFS() || inPseudoFS(); }
-
   function reqNative(el){
     const f=el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen||el.mozRequestFullScreen;
-    if(!f) return Promise.resolve(false);
-    try{
-      const ret = f.call(el);
-      if(ret && typeof ret.then==='function'){ return ret.then(()=>true).catch(()=>false); }
-      return Promise.resolve(true);
-    }catch{ return Promise.resolve(false); }
+    try{ f?.call(el); return !!f; }catch{ return false; }
   }
   function exitNative(){
     const f=document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen||document.mozCancelFullScreen;
-    if(!f) return Promise.resolve(false);
-    try{
-      const ret = f.call(document);
-      if(ret && typeof ret.then==='function'){ return ret.then(()=>true).catch(()=>false); }
-      return Promise.resolve(true);
-    }catch{ return Promise.resolve(false); }
+    try{ f?.call(document); return !!f; }catch{ return false; }
   }
-  function enterPFS(){ document.body.classList.add('pfs'); }
-  function exitPFS(){ document.body.classList.remove('pfs'); }
+  function enterPFS(){ document.body.classList.add('pfs'); fsExit.classList.add('on'); updateFsToolbar(); }
+  function exitPFS(){ document.body.classList.remove('pfs'); fsExit.classList.remove('on'); updateFsToolbar(); }
+  function inAnyFS(){ return inNativeFS() || document.body.classList.contains('pfs'); }
 
-  async function enterFS(){
-    if(isIOS){ enterPFS(); onFSUI(); return; }
-    const ok = await reqNative(shell);
-    if(!ok){ enterPFS(); }
-    onFSUI();
+  function toggleFS(){
+    if(isIOS){ // iOS は常に疑似FS
+      if(document.body.classList.contains('pfs')) exitPFS(); else enterPFS();
+      return;
+    }
+    if(inNativeFS()){ exitNative(); return; }
+    if(!reqNative(shell)) enterPFS();
   }
-  async function leaveFS(){
-    // 双方試す（確実に戻す）＋タイムアウト保険
-    let done=false;
-    const t = setTimeout(()=>{ if(!done){ exitPFS(); onFSUI(); } }, 300);
-    const ok = await exitNative();
-    exitPFS(); // 疑似FSは必ず解除
-    clearTimeout(t);
-    done=true;
-    onFSUI();
-  }
-  function onFSUI(){
-    const active = inAnyFS();
-    fsExit.classList.toggle('on', active);
-    fsToolbar.classList.toggle('on', active);
-    fsToolbar.setAttribute('aria-hidden', active ? 'false' : 'true');
-  }
-
-  const toggleFS=()=>{ inAnyFS()? leaveFS() : enterFS(); };
   fsEnter.onclick=toggleFS;
-  fsExit.onclick=leaveFS;
-  document.addEventListener('fullscreenchange', onFSUI);
-  document.addEventListener('webkitfullscreenchange', onFSUI);
+  fsExit.onclick=()=>{ // ←「戻る」：必ず動くよう両方試す
+    exitNative();
+    exitPFS();
+  };
+  document.addEventListener('fullscreenchange', ()=>{
+    fsExit.classList.toggle('on', inAnyFS());
+    updateFsToolbar();
+  });
 
-  // ====== 品質制御（同期最優先・段階アップ/即ダウン） ======
+  function updateFsToolbar(){
+    // 全画面かつフェードモードのときだけ表示
+    if(inAnyFS() && mode==='fade'){ fsToolbar.classList.add('on'); }
+    else { fsToolbar.classList.remove('on'); }
+  }
+
+  // ====== 画質制御 ======
   function applyQuality(p, which, idx){
     qIndex[which] = Math.max(0, Math.min(QUALITY_ORDER.length-1, idx));
     try{ p.setPlaybackQuality?.(QUALITY_ORDER[qIndex[which]]); }catch{}
   }
-  function lowerQualityIfThin(){
+  function lowerQualityIfNeeded(){
     const now = performance.now();
-    if(now - lastHardOrPause < 800) return; // 直後は様子見
-    const fA=pA.getVideoLoadedFraction?.()||0
+    if(now - lastHardOrPause < 1200) return;
+    const fA=pA.getVideoLoadedFraction?.()||0, fB=pB.getVideoLoadedFraction?.()||0;
+    const thin = (fA<MIN_FRAC || fB<MIN_FRAC);
+    if(thin){
+      if(qIndex.A>0) applyQuality(pA,'A',qIndex.A-1);
+      if(qIndex.B>0) applyQuality(pB,'B',qIndex.B-1);
+    }
+  }
+  function maybeUpgradeQuality(driftAbs){
+    const fA=pA.getVideoLoadedFraction?.()||0, fB=pB.getVideoLoadedFraction?.()||0;
+    const now = performance.now();
+    if(fA>=UPGRADE_FRAC && fB>=UPGRADE_FRAC && driftAbs<=FINE){
+      if(stableStart===0) stableStart = now;
+      if(now - stableStart >= UPGRADE_STABLE_MS){
+        if(qIndex.A < QUALITY_ORDER.length-1){ applyQuality(pA,'A',qIndex.A+1); }
+        if(qIndex.B < QUALITY_ORDER.length-1){ applyQuality(pB,'B',qIndex.B+1); }
+        stableStart = 0;
+      }
+    }else{
+      stableStart = 0;
+    }
+  }
+
+  // ====== バッファ判定 ======
+  function bufferedEnough(p, frac=MIN_FRAC, sec=MIN_SEC){
+    const d=p.getDuration?.()||0, f=p.getVideoLoadedFraction?.()||0;
+    const have=Math.max(f*d, p.getCurrentTime?.()||0);
+    const need=Math.max(frac*d, sec);
+    return have>=need;
+  }
+
+  // ====== 同期（rAF） ======
+  function seekBoth(t, allow){ pA.seekTo(t,allow); pB.seekTo(t,allow); updateSeek(t); }
+  function setRate(p, r){ try{ p.setPlaybackRate?.(r); }catch{} }
+
+  function loop(){
+    const stA=pA.getPlayerState?.(), stB=pB.getPlayerState?.();
+    const tA=pA.getCurrentTime?.()||0, tB=pB.getCurrentTime?.()||0;
+
+    // 再生でなければ UI 更新のみ
+    if(stA!==YT.PlayerState.PLAYING || stB!==YT.PlayerState.PLAYING){
+      updateSeek(tA); raf=requestAnimationFrame(loop); return;
+    }
+
+    // バッファ不足 → 両方停止し十分確保してから再開
+    if(!(bufferedEnough(pA) && bufferedEnough(pB))){
+      pauseBoth();
+      const id=setInterval(()=>{
+        if(bufferedEnough(pA,RESYNC_FRAC,RESYNC_SEC) && bufferedEnough(pB,RESYNC_FRAC,RESYNC_SEC)){
+          clearInterval(id);
+          seekBoth(pA.getCurrentTime?.()||0, true);
+          playBoth();
+        }
+      },250);
+      return;
+    }
+
+    // 同期補正
+    const drift = tB - tA;
+    const abs   = Math.abs(drift);
+    const now   = performance.now();
+
+    if(abs > HARD){
+      pB.seekTo(tA,true);
+      setRate(pB, RATE_NORM);
+      rateMode='norm'; rateSince=now;
+      lastHardOrPause = now;
+    }
+    else if(abs > FINE && (now - lastFine) > COOLDOWN){
+      pB.seekTo(tA,false);
+      lastFine=now;
+    }
+    else{
+      let want='norm';
+      if(drift >  RATE_DEADZONE) want='fast';
+      if(drift < -RATE_DEADZONE) want='slow';
+      if(want!==rateMode || (now-rateSince)>RATE_MAX_HOLD_MS){
+        rateMode=want; rateSince=now;
+        if(want==='fast') setRate(pB,RATE_FAST);
+        else if(want==='slow') setRate(pB,RATE_SLOW);
+        else setRate(pB,RATE_NORM);
+      }
+    }
+
+    // 画質調整
+    lowerQualityIfNeeded();
+    maybeUpgradeQuality(abs);
+
+    updateSeek(tA);
+    raf=requestAnimationFrame(loop);
+  }
+  function startLoop(){ if(!raf) raf=requestAnimationFrame(loop); }
+  function stopLoop(){ if(raf){ cancelAnimationFrame(raf); raf=null; } }
+
+  // ====== イントロ ======
+  function updateIntro(){
+    const fA=pA?.getVideoLoadedFraction?.()||0, fB=pB?.getVideoLoadedFraction?.()||0;
+    const f=Math.max(0,Math.min(1,Math.min(fA,fB)));
+    introBar.style.setProperty('--p',(f*100)+'%');
+    return f;
+  }
+  function begin(){
+    if(started) return; started=true;
+    pA.seekTo(0,true); pB.seekTo(0,true);
+    playBoth();
+    introOn=false; intro.style.display='none';
+  }
+
+  // ====== YouTube IFrame API ======
+  window.onYouTubeIframeAPIReady=function(){
+    const pv={ autoplay:1, controls:0, rel:0, modestbranding:1, playsinline:1, fs:0, iv_load_policy:3, loop:1, disablekb:1, cc_load_policy:0, origin:location.origin };
+    pA=new YT.Player('yt-before',{ videoId:VIDEO_A.id, playerVars:{...pv, playlist:VIDEO_A.id}, events:{ onReady:e=>onReady('A',e), onStateChange:onState }});
+    pB=new YT.Player('yt-after' ,{ videoId:VIDEO_B.id, playerVars:{...pv, playlist:VIDEO_B.id}, events:{ onReady:e=>onReady('B',e), onStateChange:onState }});
+  };
+  function onReady(which,e){
+    try{ e.target.mute(); }catch{}
+    try{ e.target.setPlaybackQuality('small'); }catch{}
+    if(which==='A') readyA=true; else readyB=true;
+
+    if(readyA && readyB){
+      const dA=pA.getDuration?.()||0, dB=pB.getDuration?.()||0;
+      total=Math.min(dA||0,dB||0); updateSeek(0);
+      setMode('slider'); applySplit(50);
+
+      // 起動：最低バッファを満たすまで待ち、必要なら低画質のまま開始
+      const id=setInterval(()=>{
+        const f=updateIntro();
+        if( f>=MIN_FRAC && bufferedEnough(pA) && bufferedEnough(pB) ){
+          clearInterval(id);
+          introSub.textContent = '準備完了';
+          $('intro-start').disabled=false;
+          if(autoStart){ setTimeout(()=>{ if(introOn) begin(); }, 500); }
+        } else {
+          introSub.textContent = '同期準備中… バッファリング中（低画質で開始）';
+        }
+      },180);
+    }
+  }
+  function onState(ev){
+    if(!(pA&&pB)) return;
+    const st=ev.data;
+
+    if(st===YT.PlayerState.PAUSED){
+      forceSyncOnPause(); // 停止位置の完全一致
+      pauseBoth();
+    }
+    if(st===YT.PlayerState.PLAYING){
+      if(!playing && !introOn) playBoth();
+      showPauseMask(false);
+    }
+    if(st===YT.PlayerState.ENDED){
+      seekBoth(0,true); playBoth(); // 終了画面に入れない（関連動画回避）
+    }
+  }
+
+  // イントロ操作
+  $('intro-start').onclick=()=>begin();
+  $('auto-start').onchange=(e)=>{ autoStart=!!e.target.checked; };
+
+  // ページ離脱
+  window.addEventListener('beforeunload',()=>{ stopLoop(); });
+  </script>
+</body>
+</html>
