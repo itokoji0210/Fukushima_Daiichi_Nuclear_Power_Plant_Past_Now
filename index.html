@@ -178,6 +178,8 @@
           <button id="rewind-5">⟲ -5秒</button>
           <button id="play-pause" class="primary" aria-pressed="false">▶ 再生</button>
           <button id="forward-5">+5秒 ⟳</button>
+          <button id="resync">🔁 再同期</button>
+          <button id="reload">↺ 再読み込み</button>
           <span class="time" id="time-readout">00:00 / 00:00</span>
         </div>
         <input type="range" id="seek" min="0" max="0" value="0" step="0.01" aria-label="シークバー" />
@@ -240,6 +242,7 @@
   const btnSlider=$('btn-mode-slider'), btnFade=$('btn-mode-fade'), btnA=$('btn-mode-only-before'), btnB=$('btn-mode-only-after');
   const intro=$('intro'), introStart=$('intro-start'), introSub=$('intro-sub'), introBar=$('intro-bar');
   const fsEnter=$('fs-enter'), fsExit=$('fs-exit');
+  const btnResync=$('resync'), btnReload=$('reload');
 
   // ====== 表示モード ======
   let mode='slider';
@@ -315,6 +318,9 @@
   $('play-pause').onclick=()=>{ if(!(readyA&&readyB) || introOn) return; playing?pauseBoth():playBoth(); };
   $('rewind-5').onclick=()=>nudge(-5);
   $('forward-5').onclick=()=>nudge(+5);
+  btnResync.onclick=()=>forceSyncNow();
+  btnReload.onclick=()=>location.reload();
+
   function nudge(d){
     if(!(readyA&&readyB)) return;
     const t=Math.max(0,Math.min(total,(pA.getCurrentTime?.()||0)+d));
@@ -328,6 +334,12 @@
     pB.seekTo(t,false);
     updateSeek(t);
     lastHardOrPause = performance.now();
+  }
+  function forceSyncNow(){
+    // 再生/停止状態に関わらず、その場でピタッと合わせる
+    const t=pA.getCurrentTime?.()||0;
+    pB.seekTo(t,true);
+    updateSeek(t);
   }
 
   // フルスクリーン（iOSは常に疑似、他はネイティブ→失敗時は疑似）
@@ -400,11 +412,24 @@
     const stA=pA.getPlayerState?.(), stB=pB.getPlayerState?.();
     const tA=pA.getCurrentTime?.()||0, tB=pB.getCurrentTime?.()||0;
 
+    // どちらかが終端近辺に到達したら、両者を0へ戻して即再生（ループ堅牢化）
+    if(total>0){
+      const near = 0.35; // 秒
+      if((total - tA) <= near || (total - tB) <= near){
+        pA.seekTo(0,true); pB.seekTo(0,true);
+        if(playing){ try{pA.playVideo()}catch{} try{pB.playVideo()}catch{} }
+        updateSeek(0);
+        lastHardOrPause = performance.now();
+        return;
+      }
+    }
+
     if(stA!==YT.PlayerState.PLAYING || stB!==YT.PlayerState.PLAYING){
       updateSeek(tA); return;
     }
 
     if(!(bufferedEnough(pA) && bufferedEnough(pB))){
+      // バッファが薄いときは一旦止めて、十分に溜まるまで待つ
       pauseBoth();
       const id=setInterval(()=>{
         if(bufferedEnough(pA,RESYNC_FRAC,RESYNC_SEC) && bufferedEnough(pB,RESYNC_FRAC,RESYNC_SEC)){
@@ -503,7 +528,12 @@
     const st=ev.data;
     if(st===YT.PlayerState.PAUSED){ forceSyncOnPause(); pauseBoth(); }
     if(st===YT.PlayerState.PLAYING){ if(!playing && !introOn) playBoth(); showPauseMask(false); }
-    if(st===YT.PlayerState.ENDED){ seekBoth(0,true); playBoth(); }
+    if(st===YT.PlayerState.ENDED){
+      // 念のための二重保険：終了イベントでも確実にループ
+      pA.seekTo(0,true); pB.seekTo(0,true);
+      playBoth();
+      updateSeek(0);
+    }
   }
 
   // イントロ操作
@@ -515,9 +545,6 @@
     if(document.hidden){ if(tickId){ clearInterval(tickId); tickId=null; } }
     else if(isIOS && playing && !tickId){ tickId=setInterval(syncStep,180); }
   });
-
-  // 端末回転・リサイズでUI調整（疑似FS中も100dvhでフィット）
-  window.addEventListener('resize', ()=>{ if(document.body.classList.contains('pfs')){ /* CSSが対応済み */ } });
 
   // ページ離脱
   window.addEventListener('beforeunload',()=>{ stopLoops(); });
